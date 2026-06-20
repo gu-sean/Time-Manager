@@ -1,0 +1,5 @@
+uiautomation>=2.0.20
+Pillow>=10.0.0
+pystray>=0.19.5
+winotify>=1.1.0
+pywebview>=6.0

@@ -1,0 +1,11 @@
+{
+  "neutral_title_keywords": [
+    "Incognito",
+    "InPrivate",
+    "Private Browsing",
+    "시크릿"
+  ],
+  "excluded_apps": [
+    "TimeManager.exe"
+  ]
+}
