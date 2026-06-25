@@ -34,6 +34,7 @@ import {
   setTheme,
   setProfile,
   toggleAutoBackup,
+  toggleStartup,
   toggleExcludeSelf,
   toggleNotifications,
   toggleTracking,
@@ -204,6 +205,11 @@ function App() {
     setSettings(await toggleAutoBackup(enabled));
     setSettingsMessage(enabled ? '자동 백업을 켰습니다.' : '자동 백업을 껐습니다.');
   }, []);
+  const handleToggleStartup = useCallback(async (enabled: boolean) => {
+    const result = await toggleStartup(enabled);
+    setSettings(result);
+    setSettingsMessage(result.error ? '' : enabled ? '시작 시 자동 실행을 켰습니다.' : '시작 시 자동 실행을 껐습니다.');
+  }, []);
   const handleToggleSettingsNotifications = useCallback(async (enabled: boolean) => {
     setDashboard(await toggleNotifications(enabled));
     setSettings(await getSettings());
@@ -303,6 +309,7 @@ function App() {
               onSave={handleSaveSettings}
               onToggleExcludeSelf={handleToggleExcludeSelf}
               onToggleAutoBackup={handleToggleAutoBackup}
+              onToggleStartup={handleToggleStartup}
               onToggleNotifications={handleToggleSettingsNotifications}
               onToggleTheme={handleSetTheme}
               onSetProfile={handleSetProfile}

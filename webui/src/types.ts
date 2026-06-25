@@ -170,6 +170,8 @@ export interface TopActivity {
 export interface ReportData {
   period: string;
   periodOptions: string[];
+  startIso: string;
+  endIso: string;
   weeklyScorePct: number;
   weeklyProgressText: string;
   coachingText: string;
@@ -206,6 +208,7 @@ export interface SettingsData {
   excludeSelf: boolean;
   notificationsEnabled: boolean;
   autoBackupEnabled: boolean;
+  startupEnabled: boolean;
   storeDomainOnly: boolean;
   storeWindowTitles: boolean;
   retentionDays: number;

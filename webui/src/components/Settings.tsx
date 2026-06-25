@@ -21,6 +21,7 @@ interface SettingsProps {
   onSave: (payload: Record<string, unknown>) => void;
   onToggleExcludeSelf: (enabled: boolean) => void;
   onToggleAutoBackup: (enabled: boolean) => void;
+  onToggleStartup: (enabled: boolean) => void;
   onToggleNotifications: (enabled: boolean) => void;
   onToggleTheme: (theme: 'light' | 'dark') => void;
   onSetProfile: (profile: string) => void;
@@ -38,6 +39,7 @@ export default function Settings({
   onSave,
   onToggleExcludeSelf,
   onToggleAutoBackup,
+  onToggleStartup,
   onToggleNotifications,
   onToggleTheme,
   onSetProfile,
@@ -139,6 +141,13 @@ export default function Settings({
           <div className="tm-settings-row">
             <span className="tm-settings-row-label">주 1회 자동 백업</span>
             <Toggle checked={data.autoBackupEnabled} onChange={onToggleAutoBackup} />
+          </div>
+          <div className="tm-settings-row">
+            <div>
+              <span className="tm-settings-row-label">Windows 시작 시 자동 실행</span>
+              <div style={{ fontSize: 10.5, color: '#A79F92', marginTop: 1 }}>로그인할 때 Time Manager를 자동으로 시작해요.</div>
+            </div>
+            <Toggle checked={data.startupEnabled} onChange={onToggleStartup} />
           </div>
         </div>
       </div>

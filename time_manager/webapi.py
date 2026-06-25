@@ -650,8 +650,11 @@ class WebApi:
             for key, values in PROFILE_PRESETS.get(profile, {}).items()
             for value in values
         ]
+        from time_manager.startup import is_enabled as _startup_enabled
+
         return {
             "dailyGoalMinutes": self.settings.daily_goal_minutes,
+            "startupEnabled": _startup_enabled(),
             "weeklyGoalMinutes": self.settings.weekly_goal_minutes,
             "unproductiveLimitMinutes": self.settings.unproductive_limit_minutes,
             "workStartHour": self.settings.work_start_hour,
@@ -746,6 +749,18 @@ class WebApi:
         self.settings.exclude_self_app = bool(enabled)
         self.tracker.set_exclude_self_app(self.settings.exclude_self_app)
         self.settings_store.save(self.settings)
+        return self.get_settings()
+
+    def toggle_startup(self, enabled: bool) -> dict[str, Any]:
+        from time_manager.startup import disable, enable
+
+        try:
+            if enabled:
+                enable()
+            else:
+                disable()
+        except Exception as exc:
+            return {**self.get_settings(), "error": f"자동 시작 설정 실패: {exc}"}
         return self.get_settings()
 
     def toggle_auto_backup(self, enabled: bool) -> dict[str, Any]:

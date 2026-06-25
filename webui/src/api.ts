@@ -27,6 +27,7 @@ declare global {
         save_settings(payload: Record<string, unknown>): Promise<SettingsData>;
         toggle_exclude_self(enabled: boolean): Promise<SettingsData>;
         toggle_auto_backup(enabled: boolean): Promise<SettingsData>;
+        toggle_startup(enabled: boolean): Promise<SettingsData>;
         set_theme(theme: 'light' | 'dark'): Promise<SettingsData>;
         set_profile(profile: string): Promise<SettingsData>;
         apply_preset(): Promise<SettingsData>;
@@ -344,6 +345,7 @@ let mockSettings: SettingsData = {
   excludeSelf: true,
   notificationsEnabled: true,
   autoBackupEnabled: false,
+  startupEnabled: false,
   storeDomainOnly: false,
   storeWindowTitles: true,
   retentionDays: 0,
@@ -373,6 +375,12 @@ export async function toggleExcludeSelf(enabled: boolean): Promise<SettingsData>
 export async function toggleAutoBackup(enabled: boolean): Promise<SettingsData> {
   if (hasPywebview()) return window.pywebview!.api.toggle_auto_backup(enabled);
   mockSettings = { ...mockSettings, autoBackupEnabled: enabled };
+  return mockSettings;
+}
+
+export async function toggleStartup(enabled: boolean): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.toggle_startup(enabled);
+  mockSettings = { ...mockSettings, startupEnabled: enabled };
   return mockSettings;
 }
 
