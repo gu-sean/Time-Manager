@@ -43,6 +43,11 @@ export interface FocusMode {
   thresholdMinutes: number;
 }
 
+export interface FocusSummary {
+  count: number;
+  totalTime: string | null;
+}
+
 export interface CurrentActivity {
   label: string;
   category: string;
@@ -59,6 +64,7 @@ export interface DashboardData {
   hourly: HourlyRow[];
   topApps: TopAppRow[];
   focusMode: FocusMode;
+  focusSummary: FocusSummary;
   currentActivity: CurrentActivity | null;
 }
 

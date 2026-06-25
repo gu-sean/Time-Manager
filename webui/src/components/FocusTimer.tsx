@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { sendFocusNotification } from '../api';
+import type { FocusSummary } from '../types';
 
 type Phase = 'focus' | 'break';
 
@@ -14,7 +15,7 @@ function format(seconds: number): string {
   return `${m}:${s}`;
 }
 
-export default function FocusTimer() {
+export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
   const [focusMinutes, setFocusMinutes] = useState(FOCUS_PRESETS[0]);
   const [phase, setPhase] = useState<Phase>('focus');
   const [remaining, setRemaining] = useState(FOCUS_PRESETS[0] * 60);
@@ -109,6 +110,13 @@ export default function FocusTimer() {
           초기화
         </button>
       </div>
+
+      {summary && summary.count > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border, #EEE9E0)', fontSize: 11.5, color: '#8A8377', textAlign: 'center' }}>
+          오늘 25분+ 집중 구간 <strong style={{ color: FOCUS_COLOR }}>{summary.count}개</strong>
+          {summary.totalTime && <> · <strong style={{ color: FOCUS_COLOR }}>{summary.totalTime}</strong></>}
+        </div>
+      )}
     </div>
   );
 }

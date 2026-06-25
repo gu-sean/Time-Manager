@@ -41,6 +41,7 @@ def _bootstrap(project_root: Path):
         store_domain_only=settings.store_domain_only,
         store_window_titles=settings.store_window_titles,
         unproductive_alert_seconds=settings.unproductive_limit_minutes * 60,
+        work_end_hour=settings.work_end_hour,
     )
     if hasattr(tracker.notifier, "set_enabled"):
         tracker.notifier.set_enabled(settings.notifications_enabled)

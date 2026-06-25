@@ -1,6 +1,7 @@
 import sys
 import threading
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Callable
 from urllib.parse import urlparse, urlunparse
 
@@ -27,6 +28,7 @@ class ActivityTracker:
     idle_threshold_seconds: int = 5 * 60
     unproductive_alert_seconds: int = 30 * 60
     productive_alert_seconds: int = 60 * 60
+    work_end_hour: int = 18
     exclude_self_app: bool = True
     store_domain_only: bool = False
     store_window_titles: bool = True
@@ -43,6 +45,7 @@ class ActivityTracker:
     _streak_alert_sent: bool = field(default=False, init=False)
     _idle_status_sent: bool = field(default=False, init=False)
     _last_monitor_status: str = field(default="", init=False)
+    _end_of_day_notified_date: str = field(default="", init=False)
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -109,6 +112,7 @@ class ActivityTracker:
             self.store.record(stored_activity, self.poll_seconds)
             self._last_activity = activity
             self._update_streak(activity)
+            self._maybe_end_of_day_notify()
             if self.on_activity:
                 self.on_activity(stored_activity)
             self._emit_monitor_status()
@@ -157,6 +161,23 @@ class ActivityTracker:
                 "생산적인 시간이 1시간 동안 이어졌습니다. 잠깐 스트레칭하고 다시 가도 좋습니다.",
             )
             self._streak_alert_sent = True
+
+    def _maybe_end_of_day_notify(self) -> None:
+        import time as _time
+        today = date.today().isoformat()
+        if self._end_of_day_notified_date == today:
+            return
+        if _time.localtime().tm_hour < self.work_end_hour:
+            return
+        totals = {row.category: row.seconds for row in self.store.summary_for_day(date.today())}
+        productive = totals.get(Category.PRODUCTIVE, 0)
+        unproductive = totals.get(Category.UNPRODUCTIVE, 0)
+        focused = productive + unproductive
+        score = round((productive / focused) * 100) if focused > 0 else 0
+        prod_min = productive // 60
+        body = f"생산 시간 {prod_min // 60}시간 {prod_min % 60}분 · 생산성 점수 {score}점"
+        self.notifier.send("오늘 하루 수고했어요", body)
+        self._end_of_day_notified_date = today
 
     def _reset_streak(self) -> None:
         self._streak_category = None

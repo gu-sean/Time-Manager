@@ -16,9 +16,11 @@ import {
   deleteRule,
   exportBackup,
   exportCsv,
+  exportCsvPeriod,
   getDashboard,
   getInbox,
   getReport,
+  getReportRange,
   getReview,
   getRules,
   getSettings,
@@ -179,6 +181,9 @@ function App() {
   const handleChangePeriod = useCallback(async (period: string) => {
     setReport(await getReport(period));
   }, []);
+  const handleChangeRange = useCallback(async (startIso: string, endIso: string) => {
+    setReport(await getReportRange(startIso, endIso));
+  }, []);
 
   const handleSaveSettings = useCallback(async (payload: Record<string, unknown>) => {
     const result = await saveSettings(payload);
@@ -215,6 +220,10 @@ function App() {
   }, []);
   const handleExportCsv = useCallback(async () => {
     const result = await exportCsv();
+    if (result.message) setSettingsMessage(result.message);
+  }, []);
+  const handleExportCsvPeriod = useCallback(async (period: string) => {
+    const result = await exportCsvPeriod(period);
     if (result.message) setSettingsMessage(result.message);
   }, []);
   const handleExportBackup = useCallback(async () => {
@@ -279,7 +288,7 @@ function App() {
           {activePage === 'rules' && rules && (
             <Rules data={rules} onAdd={handleAddRule} onUpdate={handleUpdateRule} onDelete={handleDeleteRule} />
           )}
-          {activePage === 'report' && report && <Report data={report} onChangePeriod={handleChangePeriod} />}
+          {activePage === 'report' && report && <Report data={report} onChangePeriod={handleChangePeriod} onChangeRange={handleChangeRange} />}
           {activePage === 'settings' && settings && (
             <SettingsPage
               key={settingsFormKey}
@@ -294,6 +303,7 @@ function App() {
               onApplyPreset={handleApplyPreset}
               onRunDiagnostics={handleRunDiagnostics}
               onExportCsv={handleExportCsv}
+              onExportCsvPeriod={handleExportCsvPeriod}
               onExportBackup={handleExportBackup}
               onRestoreBackup={handleRestoreBackup}
             />

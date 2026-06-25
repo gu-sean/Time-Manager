@@ -195,7 +195,7 @@ export default function Dashboard({ data, onToggleFocus }: DashboardProps) {
       </div>
 
       <div className="tm-focus-row">
-        <FocusTimer />
+        <FocusTimer summary={data.focusSummary} />
 
         <div className="tm-card tm-focus-card">
           <div className="tm-focus-head">

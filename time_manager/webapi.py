@@ -198,6 +198,14 @@ class WebApi:
 
         current_activity = self._current_activity_payload()
 
+        flow = self.store.day_flow(self.selected_day)
+        focus_sessions = flow.focus_sessions(min_seconds=25 * 60)
+        total_focus = sum(s.seconds for s in focus_sessions)
+        focus_summary = {
+            "count": len(focus_sessions),
+            "totalTime": _format_seconds(total_focus) if total_focus > 0 else None,
+        }
+
         category, streak_seconds = self.tracker.current_streak()
         threshold = self.tracker.unproductive_alert_seconds
         on_streak = category == Category.UNPRODUCTIVE and streak_seconds > 0
@@ -217,6 +225,7 @@ class WebApi:
             "hourly": hourly,
             "topApps": top_apps,
             "focusMode": focus_mode,
+            "focusSummary": focus_summary,
             "currentActivity": current_activity,
         }
 
@@ -721,6 +730,7 @@ class WebApi:
         self.settings_store.save(self.settings)
         self.tracker.set_privacy_options(self.settings.store_domain_only, self.settings.store_window_titles)
         self.tracker.unproductive_alert_seconds = self.settings.unproductive_limit_minutes * 60
+        self.tracker.work_end_hour = self.settings.work_end_hour
         return self.get_settings()
 
     def set_theme(self, theme: str) -> dict[str, Any]:

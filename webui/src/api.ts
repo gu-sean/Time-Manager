@@ -73,6 +73,7 @@ let mockDashboard: DashboardData = {
     { rank: 5, label: 'Discord', time: '20m', category: 'unproductive', ratio: 0.15 },
   ],
   focusMode: { enabled: true, streakLabel: '12m', ratio: 0.4, thresholdMinutes: 30 },
+  focusSummary: { count: 2, totalTime: '1시간 40분' },
   currentActivity: { label: 'App.tsx - time-manager - Visual Studio Code', category: 'productive', categoryLabel: '생산적', color: '#7FA98A' },
 };
 
