@@ -22,6 +22,7 @@ declare global {
         update_rule(oldKey: string, oldValue: string, ruleType: string, category: string, value: string): Promise<RulesData>;
         delete_rule(key: string, value: string): Promise<RulesData>;
         get_report(period?: string): Promise<ReportData>;
+        get_report_range(startIso: string, endIso: string): Promise<ReportData>;
         get_settings(): Promise<SettingsData>;
         save_settings(payload: Record<string, unknown>): Promise<SettingsData>;
         toggle_exclude_self(enabled: boolean): Promise<SettingsData>;
@@ -31,6 +32,7 @@ declare global {
         apply_preset(): Promise<SettingsData>;
         run_diagnostics(): Promise<SettingsData>;
         export_csv(dayIso?: string | null): Promise<{ message: string }>;
+        export_csv_period(period: string): Promise<{ message: string }>;
         export_backup(): Promise<{ message: string }>;
         restore_backup(): Promise<{ message: string } & Partial<SettingsData>>;
       };
@@ -316,6 +318,11 @@ export async function getReport(period = '최근 7일'): Promise<ReportData> {
   return { ...MOCK_REPORT, period };
 }
 
+export async function getReportRange(startIso: string, endIso: string): Promise<ReportData> {
+  if (hasPywebview()) return window.pywebview!.api.get_report_range(startIso, endIso);
+  return { ...MOCK_REPORT, period: `${startIso}–${endIso}` };
+}
+
 let mockSettings: SettingsData = {
   dailyGoalMinutes: 180,
   weeklyGoalMinutes: 900,
@@ -390,6 +397,11 @@ export async function runDiagnostics(): Promise<SettingsData> {
 export async function exportCsv(): Promise<{ message: string }> {
   if (hasPywebview()) return window.pywebview!.api.export_csv();
   return { message: '' };
+}
+
+export async function exportCsvPeriod(period: string): Promise<{ message: string }> {
+  if (hasPywebview()) return window.pywebview!.api.export_csv_period(period);
+  return { message: `${period} CSV 내보내기 (mock)` };
 }
 
 export async function exportBackup(): Promise<{ message: string }> {

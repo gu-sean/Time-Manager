@@ -14,6 +14,8 @@ const PRESET_EMOJI: Record<string, string> = {
   manager: '📊',
 };
 
+const PERIOD_OPTIONS = ['최근 7일', '최근 30일', '이번 달'];
+
 interface SettingsProps {
   data: SettingsData;
   onSave: (payload: Record<string, unknown>) => void;
@@ -25,6 +27,7 @@ interface SettingsProps {
   onApplyPreset: () => void;
   onRunDiagnostics: () => void;
   onExportCsv: () => void;
+  onExportCsvPeriod: (period: string) => void;
   onExportBackup: () => void;
   onRestoreBackup: () => void;
   message: string;
@@ -41,10 +44,12 @@ export default function Settings({
   onApplyPreset,
   onRunDiagnostics,
   onExportCsv,
+  onExportCsvPeriod,
   onExportBackup,
   onRestoreBackup,
   message,
 }: SettingsProps) {
+  const [csvPeriod, setCsvPeriod] = useState(PERIOD_OPTIONS[0]);
   const [form, setForm] = useState({
     dailyGoalMinutes: data.dailyGoalMinutes,
     weeklyGoalMinutes: data.weeklyGoalMinutes,
@@ -196,10 +201,25 @@ export default function Settings({
         <button className="tm-btn-small tm-btn-primary" type="button" onClick={() => onSave(form)}>
           개인화 저장
         </button>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="tm-btn-small tm-btn-ghost" type="button" onClick={onExportCsv}>
-            CSV 내보내기
+            오늘 CSV
           </button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <select
+              className="tm-select"
+              value={csvPeriod}
+              onChange={(e) => setCsvPeriod(e.target.value)}
+              style={{ fontSize: 12, height: 28 }}
+            >
+              {PERIOD_OPTIONS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <button className="tm-btn-small tm-btn-ghost" type="button" onClick={() => onExportCsvPeriod(csvPeriod)}>
+              CSV 내보내기
+            </button>
+          </div>
           <button className="tm-btn-small tm-btn-ghost" type="button" onClick={onExportBackup}>
             백업 내보내기
           </button>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import FocusTimer from './FocusTimer';
 import type { DashboardData } from '../types';
 
@@ -75,13 +76,18 @@ function HourlyChart({ hourly }: { hourly: DashboardData['hourly'] }) {
   );
 }
 
+const TOP_APPS_DEFAULT = 5;
+
 function TopApps({ rows }: { rows: DashboardData['topApps'] }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? rows : rows.slice(0, TOP_APPS_DEFAULT);
+
   if (rows.length === 0) {
     return <div className="tm-top-apps">기록된 데이터가 없습니다.</div>;
   }
   return (
     <div className="tm-top-apps">
-      {rows.map((row) => {
+      {visible.map((row) => {
         const color = CATEGORY_COLORS[row.category] ?? '#99ABBE';
         const initial = [...row.label].find((ch) => /[\p{L}\p{N}]/u.test(ch))?.toUpperCase() ?? '?';
         return (
@@ -100,6 +106,16 @@ function TopApps({ rows }: { rows: DashboardData['topApps'] }) {
           </div>
         );
       })}
+      {rows.length > TOP_APPS_DEFAULT && (
+        <button
+          className="tm-btn-small tm-btn-ghost"
+          type="button"
+          style={{ marginTop: 6, width: '100%' }}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? '접기' : `${rows.length - TOP_APPS_DEFAULT}개 더 보기`}
+        </button>
+      )}
     </div>
   );
 }

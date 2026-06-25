@@ -183,7 +183,7 @@ class WebApi:
             for row in hourly_rows
         ]
 
-        top_targets = self.store.top_targets_for_day(self.selected_day, limit=5)
+        top_targets = self.store.top_targets_for_day(self.selected_day, limit=10)
         peak = max((row.seconds for row in top_targets), default=0) or 1
         top_apps = [
             {
@@ -451,9 +451,7 @@ class WebApi:
     REPORT_RANGE_LABELS = ("최근 7일", "최근 30일", "이번 달")
     _WEEKDAY_LABELS = ("월", "화", "수", "목", "금", "토", "일")
 
-    def get_report(self, period: str = "최근 7일") -> dict[str, Any]:
-        today = date.today()
-        start_day, end_day = _report_period_for_label(period, today)
+    def _build_report(self, start_day: date, end_day: date, period: str) -> dict[str, Any]:
         rows = self.store.summaries_between(start_day, end_day)
         hourly_rows = self.store.hourly_summaries_between(start_day, end_day)
         weekdays = self.store.weekday_summaries_between(start_day, end_day)
@@ -605,6 +603,24 @@ class WebApi:
         "finance": "재무/투자",
         "manager": "매니저",
     }
+
+    def get_report(self, period: str = "최근 7일") -> dict[str, Any]:
+        today = date.today()
+        start_day, end_day = _report_period_for_label(period, today)
+        return self._build_report(start_day, end_day, period)
+
+    def get_report_range(self, start_iso: str, end_iso: str) -> dict[str, Any]:
+        try:
+            start_day = date.fromisoformat(start_iso)
+            end_day = date.fromisoformat(end_iso)
+        except ValueError:
+            return {**self.get_report(), "error": "날짜 형식이 올바르지 않습니다."}
+        today = date.today()
+        end_day = min(end_day, today)
+        if start_day > end_day:
+            return {**self.get_report(), "error": "시작일이 종료일보다 늦을 수 없습니다."}
+        label = f"{start_day.strftime('%m/%d')}–{end_day.strftime('%m/%d')}"
+        return self._build_report(start_day, end_day, label)
 
     def _backup_manager(self):
         from time_manager.backup import BackupManager
@@ -781,6 +797,22 @@ class WebApi:
         path = Path(output if isinstance(output, str) else output[0])
         rows = self.store.export_csv_for_day(target_day, path)
         return {"message": f"{rows}건의 기록을 CSV로 내보냈습니다." if rows else "해당 날짜에 내보낼 기록이 없습니다."}
+
+    def export_csv_period(self, period: str) -> dict[str, Any]:
+        import webview
+
+        today = date.today()
+        start_day, end_day = _report_period_for_label(period, today)
+        output = webview.windows[0].create_file_dialog(
+            webview.SAVE_DIALOG,
+            save_filename=f"activity-{start_day.isoformat()}-{end_day.isoformat()}.csv",
+            file_types=("CSV 파일 (*.csv)",),
+        )
+        if not output:
+            return {"message": ""}
+        path = Path(output if isinstance(output, str) else output[0])
+        rows = self.store.export_csv_for_period(start_day, end_day, path)
+        return {"message": f"{rows}건의 기록을 CSV로 내보냈습니다." if rows else "해당 기간에 내보낼 기록이 없습니다."}
 
     def export_backup(self) -> dict[str, Any]:
         import webview

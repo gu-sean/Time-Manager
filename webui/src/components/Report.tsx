@@ -79,10 +79,14 @@ function TrendChart({ trend }: { trend: ReportData['trend'] }) {
 interface ReportProps {
   data: ReportData;
   onChangePeriod: (period: string) => void;
+  onChangeRange: (startIso: string, endIso: string) => void;
 }
 
-export default function Report({ data, onChangePeriod }: ReportProps) {
+export default function Report({ data, onChangePeriod, onChangeRange }: ReportProps) {
+  const today = new Date().toISOString().slice(0, 10);
   const [dailyPageByPeriod, setDailyPageByPeriod] = useState<Record<string, number>>({});
+  const [rangeStart, setRangeStart] = useState(today);
+  const [rangeEnd, setRangeEnd] = useState(today);
   const totalPages = Math.max(1, Math.ceil(data.daily.length / DAILY_PAGE_SIZE));
   const dailyPage = Math.min(dailyPageByPeriod[data.period] ?? 0, totalPages - 1);
   const pageRows = data.daily.slice(dailyPage * DAILY_PAGE_SIZE, dailyPage * DAILY_PAGE_SIZE + DAILY_PAGE_SIZE);
@@ -107,6 +111,32 @@ export default function Report({ data, onChangePeriod }: ReportProps) {
               {opt}
             </button>
           ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            type="date"
+            className="tm-select"
+            style={{ fontSize: 12, height: 28, padding: '0 6px' }}
+            value={rangeStart}
+            max={today}
+            onChange={(e) => setRangeStart(e.target.value)}
+          />
+          <span style={{ fontSize: 12, color: '#B6AFA2' }}>–</span>
+          <input
+            type="date"
+            className="tm-select"
+            style={{ fontSize: 12, height: 28, padding: '0 6px' }}
+            value={rangeEnd}
+            max={today}
+            onChange={(e) => setRangeEnd(e.target.value)}
+          />
+          <button
+            className="tm-btn-small tm-btn-primary"
+            type="button"
+            onClick={() => onChangeRange(rangeStart, rangeEnd)}
+          >
+            조회
+          </button>
         </div>
       </div>
 
