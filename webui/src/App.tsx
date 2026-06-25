@@ -17,6 +17,7 @@ import {
   exportBackup,
   exportCsv,
   exportCsvPeriod,
+  exportCsvRange,
   getDashboard,
   getInbox,
   getReport,
@@ -184,6 +185,11 @@ function App() {
   const handleChangeRange = useCallback(async (startIso: string, endIso: string) => {
     setReport(await getReportRange(startIso, endIso));
   }, []);
+  const handleExportCsvReport = useCallback(async () => {
+    if (!report) return;
+    const result = await exportCsvRange(report.startIso, report.endIso);
+    if (result.message) setSettingsMessage(result.message);
+  }, [report]);
 
   const handleSaveSettings = useCallback(async (payload: Record<string, unknown>) => {
     const result = await saveSettings(payload);
@@ -288,7 +294,7 @@ function App() {
           {activePage === 'rules' && rules && (
             <Rules data={rules} onAdd={handleAddRule} onUpdate={handleUpdateRule} onDelete={handleDeleteRule} />
           )}
-          {activePage === 'report' && report && <Report data={report} onChangePeriod={handleChangePeriod} onChangeRange={handleChangeRange} />}
+          {activePage === 'report' && report && <Report data={report} onChangePeriod={handleChangePeriod} onChangeRange={handleChangeRange} onExportCsv={handleExportCsvReport} />}
           {activePage === 'settings' && settings && (
             <SettingsPage
               key={settingsFormKey}

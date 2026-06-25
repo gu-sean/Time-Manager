@@ -80,9 +80,10 @@ interface ReportProps {
   data: ReportData;
   onChangePeriod: (period: string) => void;
   onChangeRange: (startIso: string, endIso: string) => void;
+  onExportCsv: () => void;
 }
 
-export default function Report({ data, onChangePeriod, onChangeRange }: ReportProps) {
+export default function Report({ data, onChangePeriod, onChangeRange, onExportCsv }: ReportProps) {
   const today = new Date().toISOString().slice(0, 10);
   const [dailyPageByPeriod, setDailyPageByPeriod] = useState<Record<string, number>>({});
   const [rangeStart, setRangeStart] = useState(today);
@@ -136,6 +137,13 @@ export default function Report({ data, onChangePeriod, onChangeRange }: ReportPr
             onClick={() => onChangeRange(rangeStart, rangeEnd)}
           >
             조회
+          </button>
+          <button
+            className="tm-btn-small tm-btn-ghost"
+            type="button"
+            onClick={onExportCsv}
+          >
+            CSV 내보내기
           </button>
         </div>
       </div>

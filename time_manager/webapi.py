@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from time_manager.formatting import _format_percent, _format_seconds, _report_period_for_label, _truncate
+from time_manager.formatting import _format_seconds, _report_period_for_label, _truncate
 from time_manager.models import Category
 from time_manager.rules import (
     PROFILE_PRESETS,
@@ -581,6 +581,8 @@ class WebApi:
         return {
             "period": period,
             "periodOptions": list(self.REPORT_RANGE_LABELS),
+            "startIso": start_day.isoformat(),
+            "endIso": end_day.isoformat(),
             "weeklyScorePct": round(progress.progress_ratio * 100),
             "weeklyProgressText": (
                 f"{_format_seconds(progress.productive_seconds)} / {_format_seconds(progress.weekly_goal_minutes * 60)} "
@@ -730,7 +732,9 @@ class WebApi:
         self.settings_store.save(self.settings)
         self.tracker.set_privacy_options(self.settings.store_domain_only, self.settings.store_window_titles)
         self.tracker.unproductive_alert_seconds = self.settings.unproductive_limit_minutes * 60
-        self.tracker.work_end_hour = self.settings.work_end_hour
+        if self.tracker.work_end_hour != self.settings.work_end_hour:
+            self.tracker.work_end_hour = self.settings.work_end_hour
+            self.tracker._end_of_day_notified_date = ""
         return self.get_settings()
 
     def set_theme(self, theme: str) -> dict[str, Any]:
@@ -813,6 +817,25 @@ class WebApi:
 
         today = date.today()
         start_day, end_day = _report_period_for_label(period, today)
+        output = webview.windows[0].create_file_dialog(
+            webview.SAVE_DIALOG,
+            save_filename=f"activity-{start_day.isoformat()}-{end_day.isoformat()}.csv",
+            file_types=("CSV 파일 (*.csv)",),
+        )
+        if not output:
+            return {"message": ""}
+        path = Path(output if isinstance(output, str) else output[0])
+        rows = self.store.export_csv_for_period(start_day, end_day, path)
+        return {"message": f"{rows}건의 기록을 CSV로 내보냈습니다." if rows else "해당 기간에 내보낼 기록이 없습니다."}
+
+    def export_csv_range(self, start_iso: str, end_iso: str) -> dict[str, Any]:
+        import webview
+
+        try:
+            start_day = date.fromisoformat(start_iso)
+            end_day = date.fromisoformat(end_iso)
+        except ValueError:
+            return {"message": "날짜 형식이 올바르지 않습니다."}
         output = webview.windows[0].create_file_dialog(
             webview.SAVE_DIALOG,
             save_filename=f"activity-{start_day.isoformat()}-{end_day.isoformat()}.csv",

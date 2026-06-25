@@ -1,5 +1,6 @@
 import sys
 import threading
+import time as _time
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Callable
@@ -150,20 +151,23 @@ class ActivityTracker:
             return
 
         if category == Category.UNPRODUCTIVE and self._streak_seconds >= self.unproductive_alert_seconds:
+            minutes = self.unproductive_alert_seconds // 60
             self.notifier.send(
                 "집중할 시간입니다",
-                "비생산적인 활동이 30분 동안 이어졌습니다. 이제 다시 몰입해볼까요?",
+                f"비생산적인 활동이 {minutes}분 동안 이어졌습니다. 이제 다시 몰입해볼까요?",
             )
             self._streak_alert_sent = True
         elif category == Category.PRODUCTIVE and self._streak_seconds >= self.productive_alert_seconds:
+            minutes = self.productive_alert_seconds // 60
+            hours, mins = divmod(minutes, 60)
+            label = f"{hours}시간" if mins == 0 else f"{hours}시간 {mins}분" if hours else f"{mins}분"
             self.notifier.send(
                 "멋진 집중입니다",
-                "생산적인 시간이 1시간 동안 이어졌습니다. 잠깐 스트레칭하고 다시 가도 좋습니다.",
+                f"생산적인 시간이 {label} 동안 이어졌습니다. 잠깐 스트레칭하고 다시 가도 좋습니다.",
             )
             self._streak_alert_sent = True
 
     def _maybe_end_of_day_notify(self) -> None:
-        import time as _time
         today = date.today().isoformat()
         if self._end_of_day_notified_date == today:
             return

@@ -33,6 +33,7 @@ declare global {
         run_diagnostics(): Promise<SettingsData>;
         export_csv(dayIso?: string | null): Promise<{ message: string }>;
         export_csv_period(period: string): Promise<{ message: string }>;
+        export_csv_range(startIso: string, endIso: string): Promise<{ message: string }>;
         export_backup(): Promise<{ message: string }>;
         restore_backup(): Promise<{ message: string } & Partial<SettingsData>>;
       };
@@ -276,6 +277,8 @@ export async function deleteRule(key: string, value: string): Promise<RulesData>
 const MOCK_REPORT: ReportData = {
   period: '최근 7일',
   periodOptions: ['최근 7일', '최근 30일', '이번 달'],
+  startIso: new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10),
+  endIso: new Date().toISOString().slice(0, 10),
   weeklyScorePct: 82,
   weeklyProgressText: '26h 05m / 30h 00m (82%) · 일간 목표 달성 5일 · 지난주 대비 +45분',
   coachingText: '반복 비생산 활동은 YouTube입니다. 21시 전후의 사용 패턴을 먼저 점검해보세요.',
@@ -403,6 +406,11 @@ export async function exportCsv(): Promise<{ message: string }> {
 export async function exportCsvPeriod(period: string): Promise<{ message: string }> {
   if (hasPywebview()) return window.pywebview!.api.export_csv_period(period);
   return { message: `${period} CSV 내보내기 (mock)` };
+}
+
+export async function exportCsvRange(startIso: string, endIso: string): Promise<{ message: string }> {
+  if (hasPywebview()) return window.pywebview!.api.export_csv_range(startIso, endIso);
+  return { message: `${startIso}–${endIso} CSV 내보내기 (mock)` };
 }
 
 export async function exportBackup(): Promise<{ message: string }> {
