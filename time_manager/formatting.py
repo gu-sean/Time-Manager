@@ -1,17 +1,9 @@
 from datetime import date, timedelta
 
-from time_manager import i18n
-
 
 def _format_seconds(seconds: int) -> str:
     minutes, remainder = divmod(max(0, seconds), 60)
     hours, minutes = divmod(minutes, 60)
-    if i18n.get_language() == "en":
-        if hours:
-            return f"{hours}h {minutes}m"
-        if minutes:
-            return f"{minutes}m"
-        return f"{remainder}s"
     if hours:
         return f"{hours}시간 {minutes}분"
     if minutes:
@@ -20,11 +12,6 @@ def _format_seconds(seconds: int) -> str:
 
 
 def _dashboard_date_label(day: date, today: date) -> str:
-    if i18n.get_language() == "en":
-        if day == today:
-            return "Today"
-        weekdays = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-        return f"{day.month}/{day.day} ({weekdays[day.weekday()]})"
     if day == today:
         return "오늘"
     weekdays = ("월", "화", "수", "목", "금", "토", "일")
@@ -32,9 +19,6 @@ def _dashboard_date_label(day: date, today: date) -> str:
 
 
 def _hero_date_label(day: date, today: date) -> str:
-    if i18n.get_language() == "en":
-        prefix = "Today" if day == today else "Recorded"
-        return f"{prefix} · {day.month}/{day.day}"
     prefix = "오늘" if day == today else "기록"
     return f"{prefix} · {day.month}월 {day.day}일"
 
@@ -64,8 +48,7 @@ def _heat_color(intensity: float) -> str:
 
 def _signed_minutes(seconds: int) -> str:
     sign = "+" if seconds >= 0 else "-"
-    unit = "m" if i18n.get_language() == "en" else "분"
-    return f"{sign}{abs(seconds) // 60}{unit}"
+    return f"{sign}{abs(seconds) // 60}분"
 
 
 def _report_period_for_label(label: str, today: date) -> tuple[date, date]:

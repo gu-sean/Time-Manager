@@ -142,13 +142,6 @@ class WeeklyProgress:
 
 
 @dataclass(frozen=True)
-class ClassificationSuggestion:
-    label: str
-    seconds: int
-    occurrences: int
-
-
-@dataclass(frozen=True)
 class ActivityEvent:
     id: int
     started_at: str
@@ -506,41 +499,6 @@ class ActivityStore:
                 params,
             ).fetchall()
         return [BreakdownRow(row[0], Category(row[1]), int(row[2])) for row in rows]
-
-    def classification_suggestions(
-        self,
-        days: int = 7,
-        min_occurrences: int = 3,
-        min_total_seconds: int = 300,
-        limit: int = 30,
-    ) -> list[ClassificationSuggestion]:
-        end_day = date.today()
-        start_day = end_day - timedelta(days=days - 1)
-        start, _ = self._day_bounds(start_day)
-        _, end = self._day_bounds(end_day)
-        with self._connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT
-                    COALESCE(NULLIF(url, ''), NULLIF(window_title, ''), app_name) AS target,
-                    COALESCE(SUM(seconds), 0) AS total_seconds,
-                    COALESCE(SUM(event_count), COUNT(*)) AS occurrences
-                FROM activity_events
-                WHERE started_at >= ? AND started_at < ?
-                    AND deleted_at IS NULL
-                    AND category = ?
-                    AND reason = 'no matching rule'
-                    AND app_name NOT IN ('Unknown', '')
-                    AND COALESCE(NULLIF(url, ''), NULLIF(window_title, ''), app_name) NOT LIKE 'Monitor error%'
-                GROUP BY target
-                HAVING COALESCE(SUM(event_count), COUNT(*)) >= ?
-                    AND COALESCE(SUM(seconds), 0) >= ?
-                ORDER BY total_seconds DESC
-                LIMIT ?
-                """,
-                (start, end, Category.NEUTRAL.value, min_occurrences, min_total_seconds, limit),
-            ).fetchall()
-        return [ClassificationSuggestion(row[0], int(row[1]), int(row[2])) for row in rows]
 
     def compare_days(self, current_day: date, previous_day: date) -> DayComparison:
         return DayComparison(

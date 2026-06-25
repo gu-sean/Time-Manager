@@ -71,17 +71,10 @@ export interface InboxRecord {
   label: string;
 }
 
-export interface CandidateRow {
-  label: string;
-  duration: string;
-  occurrences: number;
-}
-
 export interface InboxData {
   records: InboxRecord[];
   searchActive: boolean;
   resultCount: number | null;
-  candidates: CandidateRow[];
 }
 
 export interface ReviewSegment {

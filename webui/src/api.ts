@@ -12,14 +12,10 @@ declare global {
         get_current_activity(): Promise<CurrentActivity | null>;
         send_focus_notification(title: string, body: string): Promise<void>;
         get_inbox(query?: string, category?: string | null): Promise<InboxData>;
-        sort_candidates(column: string): Promise<CandidateRow_[]>;
         reclassify_event(eventId: number, category: string): Promise<InboxData>;
         save_event_as_rule(eventId: number, label: string, category: string): Promise<InboxData>;
         delete_event(eventId: number): Promise<InboxData>;
         restore_deleted_event(): Promise<InboxData>;
-        classify_candidates(labels: string[], category: string): Promise<InboxData>;
-        exclude_candidates(labels: string[]): Promise<InboxData>;
-        ignore_candidates(labels: string[]): Promise<InboxData>;
         get_review(): Promise<ReviewData>;
         get_rules(): Promise<RulesData>;
         add_rule(ruleType: string, category: string, value: string): Promise<RulesData>;
@@ -41,8 +37,6 @@ declare global {
     };
   }
 }
-
-type CandidateRow_ = InboxData['candidates'][number];
 
 let mockDashboard: DashboardData = {
   dateLabel: '오늘',
@@ -89,11 +83,6 @@ let mockInbox: InboxData = {
   ],
   searchActive: false,
   resultCount: null,
-  candidates: [
-    { label: 'Notion', duration: '2h 10m', occurrences: 12 },
-    { label: 'Twitter / X', duration: '1h 30m', occurrences: 9 },
-    { label: 'Spotify', duration: '3h 00m', occurrences: 18 },
-  ],
 };
 
 function hasPywebview(): boolean {
@@ -145,14 +134,6 @@ export async function getInbox(query = '', category: string | null = null): Prom
   return { ...mockInbox, searchActive: true, resultCount: mockInbox.records.length };
 }
 
-export async function sortCandidates(column: string): Promise<CandidateRow_[]> {
-  if (hasPywebview()) return window.pywebview!.api.sort_candidates(column);
-  const sorted = [...mockInbox.candidates].sort((a, b) =>
-    column === 'occurrences' ? b.occurrences - a.occurrences : 0,
-  );
-  return sorted;
-}
-
 export async function reclassifyEvent(eventId: number, category: string): Promise<InboxData> {
   if (hasPywebview()) return window.pywebview!.api.reclassify_event(eventId, category);
   mockInbox = {
@@ -175,24 +156,6 @@ export async function deleteEvent(eventId: number): Promise<InboxData> {
 
 export async function restoreDeletedEvent(): Promise<InboxData> {
   if (hasPywebview()) return window.pywebview!.api.restore_deleted_event();
-  return mockInbox;
-}
-
-export async function classifyCandidates(labels: string[], category: string): Promise<InboxData> {
-  if (hasPywebview()) return window.pywebview!.api.classify_candidates(labels, category);
-  mockInbox = { ...mockInbox, candidates: mockInbox.candidates.filter((c) => !labels.includes(c.label)) };
-  return mockInbox;
-}
-
-export async function excludeCandidates(labels: string[]): Promise<InboxData> {
-  if (hasPywebview()) return window.pywebview!.api.exclude_candidates(labels);
-  mockInbox = { ...mockInbox, candidates: mockInbox.candidates.filter((c) => !labels.includes(c.label)) };
-  return mockInbox;
-}
-
-export async function ignoreCandidates(labels: string[]): Promise<InboxData> {
-  if (hasPywebview()) return window.pywebview!.api.ignore_candidates(labels);
-  mockInbox = { ...mockInbox, candidates: mockInbox.candidates.filter((c) => !labels.includes(c.label)) };
   return mockInbox;
 }
 

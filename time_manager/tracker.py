@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import Callable
 from urllib.parse import urlparse, urlunparse
 
-from time_manager.i18n import t
 from time_manager.models import ActiveTarget, Category, ClassifiedActivity
 from time_manager.notifications import Notifier, default_notifier
 from time_manager.platforms import PlatformMonitor
@@ -148,14 +147,14 @@ class ActivityTracker:
 
         if category == Category.UNPRODUCTIVE and self._streak_seconds >= self.unproductive_alert_seconds:
             self.notifier.send(
-                t("집중할 시간입니다"),
-                t("비생산적인 활동이 30분 동안 이어졌습니다. 이제 다시 몰입해볼까요?"),
+                "집중할 시간입니다",
+                "비생산적인 활동이 30분 동안 이어졌습니다. 이제 다시 몰입해볼까요?",
             )
             self._streak_alert_sent = True
         elif category == Category.PRODUCTIVE and self._streak_seconds >= self.productive_alert_seconds:
             self.notifier.send(
-                t("멋진 집중입니다"),
-                t("생산적인 시간이 1시간 동안 이어졌습니다. 잠깐 스트레칭하고 다시 가도 좋습니다."),
+                "멋진 집중입니다",
+                "생산적인 시간이 1시간 동안 이어졌습니다. 잠깐 스트레칭하고 다시 가도 좋습니다.",
             )
             self._streak_alert_sent = True
 

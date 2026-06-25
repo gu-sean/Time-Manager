@@ -12,10 +12,8 @@ from time_manager.rules import (
     RuleConflictError,
     add_rule_value,
     apply_profile_preset,
-    candidate_still_unclassified,
     load_rules,
     remove_rule_value,
-    rule_from_candidate,
     rule_key_for_selection,
     update_rule_value,
 )
@@ -75,7 +73,6 @@ class WebApi:
         self.settings = settings_store.load()
         self.rules_path = rules_path
         self.selected_day = date.today()
-        self._candidate_sort: tuple[str, bool] = ("duration", True)
         self._maybe_auto_backup()
 
     # -- 날짜 이동 ----------------------------------------------------------
@@ -276,30 +273,7 @@ class WebApi:
             "records": records,
             "searchActive": searching,
             "resultCount": len(records) if searching else None,
-            "candidates": self._candidate_payload(),
         }
-
-    def _candidate_payload(self) -> list[dict[str, Any]]:
-        ignored = {label.lower() for label in self.settings.ignored_suggestions}
-        candidates = self.store.classification_suggestions(7, min_occurrences=2, min_total_seconds=300, limit=50)
-        rows = [
-            row
-            for row in candidates
-            if row.label.lower() not in ignored and candidate_still_unclassified(row.label, self.tracker.classifier)
-        ]
-        sort_key, reverse = self._candidate_sort
-        key_fn = (lambda r: r.occurrences) if sort_key == "occurrences" else (lambda r: r.seconds)
-        rows.sort(key=key_fn, reverse=reverse)
-        return [
-            {"label": row.label, "duration": _format_seconds(row.seconds), "occurrences": row.occurrences}
-            for row in rows
-        ]
-
-    def sort_candidates(self, column: str) -> list[dict[str, Any]]:
-        current_col, reverse = self._candidate_sort
-        reverse = not reverse if current_col == column else True
-        self._candidate_sort = (column, reverse)
-        return self._candidate_payload()
 
     def reclassify_event(self, event_id: int, category: str) -> dict[str, Any]:
         self.store.reclassify_event(event_id, Category(category))
@@ -322,32 +296,6 @@ class WebApi:
 
     def restore_deleted_event(self) -> dict[str, Any]:
         self.store.restore_last_deleted()
-        return self.get_inbox()
-
-    def classify_candidates(self, labels: list[str], category: str) -> dict[str, Any]:
-        cat = Category(category)
-        for label in labels:
-            key, value = rule_from_candidate(label, cat)
-            classifier = self._add_rule_value(key, value)
-            if classifier is not None:
-                self.tracker.classifier = classifier
-        return self.get_inbox()
-
-    def exclude_candidates(self, labels: list[str]) -> dict[str, Any]:
-        for label in labels:
-            if not label.lower().endswith(".exe"):
-                continue
-            classifier = self._add_rule_value("excluded_apps", label)
-            if classifier is not None:
-                self.tracker.classifier = classifier
-        return self.get_inbox()
-
-    def ignore_candidates(self, labels: list[str]) -> dict[str, Any]:
-        ignored = {item.lower() for item in self.settings.ignored_suggestions}
-        new_labels = tuple(label for label in labels if label.lower() not in ignored)
-        if new_labels:
-            self.settings.ignored_suggestions = self.settings.ignored_suggestions + new_labels
-            self.settings_store.save(self.settings)
         return self.get_inbox()
 
     # -- 데일리 리뷰 --------------------------------------------------------
@@ -756,6 +704,7 @@ class WebApi:
         self.settings.theme = theme if theme in {"light", "dark"} else self.settings.theme
         self.settings_store.save(self.settings)
         self.tracker.set_privacy_options(self.settings.store_domain_only, self.settings.store_window_titles)
+        self.tracker.unproductive_alert_seconds = self.settings.unproductive_limit_minutes * 60
         return self.get_settings()
 
     def set_theme(self, theme: str) -> dict[str, Any]:

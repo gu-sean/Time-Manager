@@ -292,25 +292,3 @@ def rule_key_for_selection(rule_type: str, category: str) -> str:
     return f"{prefix}_apps"
 
 
-def rule_from_candidate(label: str, category: Category) -> tuple[str, str]:
-    prefix = "productive" if category == Category.PRODUCTIVE else "unproductive"
-    try:
-        parsed = urlparse(label if "://" in label else f"https://{label}")
-    except ValueError:
-        parsed = None
-    if parsed and parsed.netloc and "." in parsed.netloc:
-        return f"{prefix}_domains", parsed.netloc.lower().removeprefix("www.")
-    if label.lower().endswith(".exe"):
-        return f"{prefix}_apps", label
-    return f"{prefix}_title_keywords", label
-
-
-def candidate_still_unclassified(label: str, classifier: RuleClassifier) -> bool:
-    key, value = rule_from_candidate(label, Category.PRODUCTIVE)
-    if key.endswith("_domains"):
-        target = ActiveTarget(app_name="chrome.exe", window_title="", url=f"https://{value}")
-    elif key.endswith("_apps"):
-        target = ActiveTarget(app_name=value, window_title="", url=None)
-    else:
-        target = ActiveTarget(app_name="Unknown", window_title=value, url=None)
-    return getattr(classifier.classify(target), "category", None) == Category.NEUTRAL

@@ -1,7 +1,6 @@
 import logging
 from pathlib import Path
 
-from time_manager import i18n
 from time_manager.paths import ensure_writable_rules, user_data_dir
 from time_manager.rules import RuleClassifier
 from time_manager.settings import SettingsStore
@@ -32,7 +31,6 @@ def _bootstrap(project_root: Path):
     rules_path = ensure_writable_rules(project_root)
     settings_store = SettingsStore(data_dir / "settings.json")
     settings = settings_store.load_or_create()
-    i18n.set_language("ko")
     store = ActivityStore(data_dir / "activity.sqlite3")
     store.purge_older_than(settings.retention_days)
     classifier = RuleClassifier.from_file(rules_path)
@@ -42,6 +40,7 @@ def _bootstrap(project_root: Path):
         exclude_self_app=settings.exclude_self_app,
         store_domain_only=settings.store_domain_only,
         store_window_titles=settings.store_window_titles,
+        unproductive_alert_seconds=settings.unproductive_limit_minutes * 60,
     )
     if hasattr(tracker.notifier, "set_enabled"):
         tracker.notifier.set_enabled(settings.notifications_enabled)
