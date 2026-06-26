@@ -6,10 +6,10 @@ from typing import Any
 from time_manager.formatting import _format_seconds, _truncate
 from time_manager.models import Category
 
-from ._shared import _CATEGORY_LABELS, _STAT_BADGES, _day_totals, _delta_text, _productivity_score
+from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _STAT_BADGES, _day_totals, _delta_text, _productivity_score
 
 
-class DashboardMixin:
+class DashboardMixin(WebApiBase):
     def toggle_notifications(self, enabled: bool) -> dict[str, Any]:
         self.settings.notifications_enabled = bool(enabled)
         self.settings_store.save(self.settings)
@@ -34,12 +34,6 @@ class DashboardMixin:
         else:
             self.tracker.start()
         return self.get_dashboard()
-
-    _CATEGORY_COLORS = {
-        Category.PRODUCTIVE: "#7FA98A",
-        Category.UNPRODUCTIVE: "#DB9163",
-        Category.NEUTRAL: "#99ABBE",
-    }
 
     def get_dashboard(self, date_iso: str | None = None) -> dict[str, Any]:
         today = date.today()
@@ -83,18 +77,13 @@ class DashboardMixin:
 
         donut_segments = []
         if total_seconds > 0:
-            colors = {
-                Category.PRODUCTIVE: "#7FA98A",
-                Category.UNPRODUCTIVE: "#DB9163",
-                Category.NEUTRAL: "#99ABBE",
-            }
             for category in (Category.PRODUCTIVE, Category.UNPRODUCTIVE, Category.NEUTRAL):
                 seconds = totals[category]
                 donut_segments.append(
                     {
                         "category": category.value,
                         "label": _CATEGORY_LABELS[category],
-                        "color": colors[category],
+                        "color": CATEGORY_COLORS[category],
                         "pct": round((seconds / total_seconds) * 100),
                         "time": _format_seconds(seconds),
                         "ratio": seconds / total_seconds,
@@ -173,5 +162,5 @@ class DashboardMixin:
             "label": label,
             "category": activity.category.value,
             "categoryLabel": _CATEGORY_LABELS[activity.category],
-            "color": self._CATEGORY_COLORS[activity.category],
+            "color": CATEGORY_COLORS[activity.category],
         }

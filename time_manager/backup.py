@@ -45,6 +45,8 @@ class BackupManager:
                         archive.write(source, archive_name)
         return output_path
 
+    _MAX_RESTORE_BYTES = 200 * 1024 * 1024  # 200 MB
+
     def restore(self, input_path: Path) -> Path:
         safety_path = self.backup_dir / f"pre-restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.tmbak"
         self.export(safety_path)
@@ -53,15 +55,28 @@ class BackupManager:
             required = {archive_name for _source, archive_name in self._managed_files()}
             if not required.issubset(names):
                 raise ValueError("백업 파일에 필요한 데이터가 없습니다.")
+            total_size = sum(archive.getinfo(name).file_size for name in names)
+            if total_size > self._MAX_RESTORE_BYTES:
+                raise ValueError(f"백업 파일이 너무 큽니다 ({total_size // (1024 * 1024)} MB). 올바른 백업 파일인지 확인하세요.")
             for target, archive_name in self._managed_files():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(archive.read(archive_name))
         return safety_path
 
-    def auto_backup(self, today: date | None = None) -> Path:
+    def auto_backup(self, today: date | None = None, keep: int = 4) -> Path:
         stamp = (today or date.today()).isoformat()
         output = self.backup_dir / f"auto-{stamp}.tmbak"
-        return self.export(output)
+        self.export(output)
+        self._prune_auto_backups(keep=keep)
+        return output
+
+    def _prune_auto_backups(self, keep: int = 4) -> None:
+        files = sorted(self.backup_dir.glob("auto-*.tmbak"))
+        for old in files[:-keep] if keep > 0 else []:
+            try:
+                old.unlink()
+            except OSError:
+                pass
 
     def _managed_files(self) -> tuple[tuple[Path, str], ...]:
         return (

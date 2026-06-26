@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 from pathlib import Path
 
 from time_manager.paths import ensure_writable_rules, user_data_dir
@@ -17,7 +18,9 @@ def _configure_logging(data_dir: Path) -> Path:
         if getattr(handler, "_time_manager_file_handler", False):
             logger.removeHandler(handler)
             handler.close()
-    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+    )
     handler._time_manager_file_handler = True
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logger.addHandler(handler)

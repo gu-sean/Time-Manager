@@ -336,8 +336,11 @@ class ActivityStore:
             """
         ]
         if query.strip():
-            like = f"%{query.strip().lower()}%"
-            sql_parts.append("    AND (LOWER(app_name) LIKE ? OR LOWER(window_title) LIKE ? OR LOWER(COALESCE(url, '')) LIKE ?)")
+            escaped = query.strip().lower().replace("!", "!!").replace("%", "!%").replace("_", "!_")
+            like = f"%{escaped}%"
+            sql_parts.append(
+                "    AND (LOWER(app_name) LIKE ? ESCAPE '!' OR LOWER(window_title) LIKE ? ESCAPE '!' OR LOWER(COALESCE(url, '')) LIKE ? ESCAPE '!')"
+            )
             params += [like, like, like]
         if category:
             sql_parts.append("    AND category = ?")

@@ -31,4 +31,7 @@ class WebApi(DashboardMixin, InboxMixin, ReviewMixin, RulesMixin, ReportMixin, S
         self.settings_store = settings_store
         self.settings = settings_store.load()
         self.rules_path = rules_path
-        self._maybe_auto_backup()
+        try:
+            self._maybe_auto_backup()
+        except Exception:
+            pass

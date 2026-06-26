@@ -100,6 +100,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
 
   return (
     <div className="tm-page">
+      {data.error && <div className="tm-rule-error">{data.error}</div>}
       <div className="tm-period-row">
         <div className="tm-period-chips">
           {data.periodOptions.map((opt) => (

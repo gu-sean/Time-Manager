@@ -1691,18 +1691,28 @@
   padding: 14px 18px;
 }
 
-.tm-settings-message {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
+/* ---- toast ---- */
+.tm-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: #edf7ee;
   border: 1px solid #dcebdc;
   border-radius: 10px;
-  background: #edf7ee;
-  padding: 8px 11px;
-  font-size: 11.5px;
+  padding: 10px 18px;
+  font-size: 12px;
   font-weight: 700;
   color: #6f9a7c;
-  margin-top: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: tm-toast-in 0.2s ease;
+}
+
+@keyframes tm-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* ---- dark mode ---- */
@@ -1885,7 +1895,7 @@
   color: #11150f;
 }
 
-.tm-shell.dark .tm-settings-message {
+.tm-shell.dark .tm-toast {
   background: rgba(127, 169, 138, 0.15);
   border-color: rgba(127, 169, 138, 0.3);
   color: #a8d4b4;

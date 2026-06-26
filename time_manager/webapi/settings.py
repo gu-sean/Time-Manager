@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import platform
 from typing import Any
 
+from time_manager import __version__
+from time_manager.diagnostics import run_diagnostics as _run_diagnostics
 from time_manager.rules import PROFILE_PRESETS, apply_profile_preset
+from time_manager.startup import disable as _startup_disable
+from time_manager.startup import enable as _startup_enable
+from time_manager.startup import is_enabled as _startup_is_enabled
+
+from ._shared import WebApiBase
 
 
-class SettingsMixin:
+class SettingsMixin(WebApiBase):
     PROFILE_LABELS = {
         "": "선택 안 함",
         "developer": "개발자",
@@ -26,11 +34,9 @@ class SettingsMixin:
             for key, values in PROFILE_PRESETS.get(profile, {}).items()
             for value in values
         ]
-        from time_manager.startup import is_enabled as _startup_enabled
-
         return {
             "dailyGoalMinutes": self.settings.daily_goal_minutes,
-            "startupEnabled": _startup_enabled(),
+            "startupEnabled": _startup_is_enabled(),
             "weeklyGoalMinutes": self.settings.weekly_goal_minutes,
             "unproductiveLimitMinutes": self.settings.unproductive_limit_minutes,
             "workStartHour": self.settings.work_start_hour,
@@ -62,10 +68,6 @@ class SettingsMixin:
         return "앱 알림이 켜져 있습니다. 표시되지 않으면 Windows 알림 설정을 확인하세요."
 
     def _diagnostic_info_text(self) -> str:
-        import platform
-
-        from time_manager import __version__
-
         settings_path = self.settings_store.path if self.settings_store else "없음"
         environment = f"v{__version__} · {platform.system()} {platform.release()}"
         log_path = self.store.db_path.parent / "time-manager.log"
@@ -128,13 +130,11 @@ class SettingsMixin:
         return self.get_settings()
 
     def toggle_startup(self, enabled: bool) -> dict[str, Any]:
-        from time_manager.startup import disable, enable
-
         try:
             if enabled:
-                enable()
+                _startup_enable()
             else:
-                disable()
+                _startup_disable()
         except Exception as exc:
             return {**self.get_settings(), "error": f"자동 시작 설정 실패: {exc}"}
         return self.get_settings()
@@ -157,8 +157,6 @@ class SettingsMixin:
         return self.get_settings()
 
     def run_diagnostics(self) -> dict[str, Any]:
-        from time_manager.diagnostics import run_diagnostics as _run_diagnostics
-
         settings_path = self.settings_store.path if self.settings_store else self.store.db_path.parent / "settings.json"
         results = _run_diagnostics(
             data_dir=self.store.db_path.parent,

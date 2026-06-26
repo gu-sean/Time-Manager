@@ -1,3 +1,4 @@
+import logging
 import sys
 import threading
 import time as _time
@@ -6,10 +7,12 @@ from datetime import date
 from typing import Callable
 from urllib.parse import urlparse, urlunparse
 
+_log = logging.getLogger(__name__)
+
 from time_manager.models import ActiveTarget, Category, ClassifiedActivity
 from time_manager.notifications import Notifier, default_notifier
 from time_manager.platforms import PlatformMonitor
-from time_manager.rules import RuleClassifier
+from time_manager.rules import RuleClassifier, _domain_from_url
 from time_manager.storage import ActivityStore
 
 
@@ -123,6 +126,7 @@ class ActivityTracker:
         try:
             return self.monitor.get_active_target()
         except Exception as exc:
+            _log.warning("get_active_target failed: %s", exc)
             return ActiveTarget(app_name="Unknown", window_title=f"Monitor error: {exc}")
 
     def current_streak(self) -> tuple[Category | None, int]:
@@ -136,7 +140,8 @@ class ActivityTracker:
     def _safe_idle_seconds(self) -> int:
         try:
             return self.monitor.idle_seconds()
-        except Exception:
+        except Exception as exc:
+            _log.warning("idle_seconds failed: %s", exc)
             return 0
 
     def _update_streak(self, activity: ClassifiedActivity) -> None:
@@ -232,13 +237,11 @@ class ActivityTracker:
         return app_name in excluded
 
 def _domain_url(url: str) -> str:
-    normalized = url if "://" in url else f"https://{url}"
+    domain = _domain_from_url(url)
+    if domain is None:
+        return url
     try:
-        parsed = urlparse(normalized)
+        scheme = urlparse(url if "://" in url else f"https://{url}").scheme or "https"
     except ValueError:
-        return url
-    if not parsed.hostname:
-        return url
-    scheme = parsed.scheme or "https"
-    netloc = parsed.hostname.lower().removeprefix("www.")
-    return urlunparse((scheme, netloc, "", "", "", ""))
+        scheme = "https"
+    return urlunparse((scheme, domain, "", "", "", ""))

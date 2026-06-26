@@ -44,7 +44,7 @@ class SettingsStore:
             store_window_titles=bool(data.get("store_window_titles", True)),
             retention_days=max(0, int(data.get("retention_days", 0))),
             notifications_enabled=bool(data.get("notifications_enabled", True)),
-            auto_backup_enabled=bool(data.get("auto_backup_enabled", False)),
+            auto_backup_enabled=bool(data.get("auto_backup_enabled", True)),
             last_auto_backup=str(data.get("last_auto_backup", "")),
             theme=_coerce_theme(data.get("theme", "light")),
         )

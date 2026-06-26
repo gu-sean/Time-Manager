@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import sys
 
-APP_NAME = "TimeManager"
+from time_manager.paths import APP_NAME
+
 _REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 

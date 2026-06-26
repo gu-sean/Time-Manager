@@ -184,6 +184,7 @@ export interface ReportData {
   heatmap: HeatmapRow[];
   daily: DailyRow[];
   topActivities: TopActivity[];
+  error?: string;
 }
 
 export interface PresetItem {

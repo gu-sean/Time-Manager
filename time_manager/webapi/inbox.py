@@ -7,10 +7,10 @@ from time_manager.formatting import _format_seconds, _truncate
 from time_manager.models import Category
 from time_manager.rules import RuleClassifier, RuleConflictError, add_rule_value, rule_from_candidate
 
-from ._shared import _CATEGORY_LABELS
+from ._shared import WebApiBase, _CATEGORY_LABELS
 
 
-class InboxMixin:
+class InboxMixin(WebApiBase):
     def _add_rule_value(self, key: str, value: str) -> RuleClassifier | None:
         try:
             return add_rule_value(self.rules_path, key, value)

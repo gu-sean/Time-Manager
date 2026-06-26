@@ -6,8 +6,10 @@ from typing import Any
 from time_manager.formatting import _format_seconds, _report_period_for_label, _truncate
 from time_manager.models import Category
 
+from ._shared import WebApiBase
 
-class ReportMixin:
+
+class ReportMixin(WebApiBase):
     REPORT_RANGE_LABELS = ("최근 7일", "최근 30일", "이번 달")
     _WEEKDAY_LABELS = ("월", "화", "수", "목", "금", "토", "일")
 

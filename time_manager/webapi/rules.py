@@ -10,8 +10,10 @@ from time_manager.rules import (
     update_rule_value,
 )
 
+from ._shared import WebApiBase
 
-class RulesMixin:
+
+class RulesMixin(WebApiBase):
     _RULE_GROUPS = (
         ("생산적", "도메인", "productive_domains"),
         ("생산적", "창 제목 키워드", "productive_title_keywords"),

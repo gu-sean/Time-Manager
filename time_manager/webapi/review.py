@@ -6,15 +6,14 @@ from typing import Any
 from time_manager.formatting import _format_seconds, _truncate
 from time_manager.models import Category
 
-from ._shared import _CATEGORY_LABELS, _day_totals
+from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals
 
 
-class ReviewMixin:
+class ReviewMixin(WebApiBase):
     def get_review(self, date_iso: str | None = None) -> dict[str, Any]:
         selected_day = date.fromisoformat(date_iso) if date_iso else date.today()
         totals = _day_totals(self.store, selected_day)
         total_seconds = sum(totals.values())
-        colors = {Category.PRODUCTIVE: "#7FA98A", Category.UNPRODUCTIVE: "#DB9163", Category.NEUTRAL: "#99ABBE"}
         segments = []
         if total_seconds > 0:
             for category in (Category.PRODUCTIVE, Category.UNPRODUCTIVE, Category.NEUTRAL):
@@ -25,7 +24,7 @@ class ReviewMixin:
                     {
                         "category": category.value,
                         "label": _CATEGORY_LABELS[category],
-                        "color": colors[category],
+                        "color": CATEGORY_COLORS[category],
                         "pct": round((seconds / total_seconds) * 100),
                         "time": _format_seconds(seconds),
                     }

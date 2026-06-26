@@ -9,36 +9,22 @@ import Rules from './components/Rules';
 import Report from './components/Report';
 import SettingsPage from './components/Settings';
 import {
-  addRule,
-  applyPreset,
-  deleteEvent,
-  deleteRule,
-  exportBackup,
-  exportCsv,
-  exportCsvPeriod,
-  exportCsvRange,
   getDashboard,
   getInbox,
   getReport,
-  getReportRange,
   getReview,
   getRules,
   getSettings,
-  restoreBackup,
-  restoreDeletedEvent,
-  runDiagnostics,
-  saveSettings,
-  updateRule,
   setTheme,
-  setProfile,
-  toggleAutoBackup,
-  toggleStartup,
-  toggleExcludeSelf,
   toggleNotifications,
   toggleTracking,
   waitForApi,
 } from './api';
 import type { DashboardData, InboxData, ReportData, ReviewData, RulesData, SettingsData } from './types';
+import { useInboxHandlers } from './hooks/useInboxHandlers';
+import { useReportHandlers } from './hooks/useReportHandlers';
+import { useRulesHandlers } from './hooks/useRulesHandlers';
+import { useSettingsHandlers } from './hooks/useSettingsHandlers';
 
 const PAGE_META: Record<string, { title: string; sub: string }> = {
   dashboard: { title: '대시보드', sub: '오늘의 흐름' },
@@ -73,7 +59,7 @@ function App() {
   const [rules, setRules] = useState<RulesData | null>(null);
   const [report, setReport] = useState<ReportData | null>(null);
   const [settings, setSettings] = useState<SettingsData | null>(null);
-  const [settingsMessage, setSettingsMessage] = useState('');
+  const [toast, setToast] = useState('');
   const pollRef = useRef<number | undefined>(undefined);
 
   const refresh = useCallback(async () => {
@@ -81,6 +67,7 @@ function App() {
     if (selectedDayRef.current !== today && selectedDayRef.current === prevDayRef.current) {
       selectedDayRef.current = today;
       setSelectedDay(today);
+      setToast('날짜가 변경되었습니다.');
     }
     prevDayRef.current = today;
     const data = await getDashboard(selectedDayRef.current);
@@ -112,10 +99,10 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (!settingsMessage) return undefined;
-    const timeout = window.setTimeout(() => setSettingsMessage(''), 2800);
+    if (!toast) return undefined;
+    const timeout = window.setTimeout(() => setToast(''), 2800);
     return () => window.clearTimeout(timeout);
-  }, [settingsMessage]);
+  }, [toast]);
 
   useEffect(() => {
     if (activePage === 'inbox' && !inbox) {
@@ -160,124 +147,39 @@ function App() {
   const handleToggleFocus = useCallback(async (enabled: boolean) => {
     setDashboard(await toggleNotifications(enabled));
     setSettings(await getSettings());
-    setSettingsMessage(enabled ? '목표·집중 알림을 켰습니다.' : '목표·집중 알림을 껐습니다.');
+    setToast(enabled ? '목표·집중 알림을 켰습니다.' : '목표·집중 알림을 껐습니다.');
   }, []);
+
   const handleHeaderToggleNotifications = useCallback(async () => {
     const nextEnabled = !notificationsEnabled;
     setDashboard(await toggleNotifications(nextEnabled));
     setSettings(await getSettings());
-    setSettingsMessage(nextEnabled ? '목표·집중 알림을 켰습니다.' : '목표·집중 알림을 껐습니다.');
+    setToast(nextEnabled ? '목표·집중 알림을 켰습니다.' : '목표·집중 알림을 껐습니다.');
   }, [notificationsEnabled]);
+
   const handleToggleTheme = useCallback(async () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setSettings(await setTheme(nextTheme));
-    setSettingsMessage(nextTheme === 'dark' ? '다크 모드를 켰습니다.' : '라이트 모드로 변경했습니다.');
+    setToast(nextTheme === 'dark' ? '다크 모드를 켰습니다.' : '라이트 모드로 변경했습니다.');
   }, [theme]);
+
   const handleToggleTracking = useCallback(async () => {
     setDashboard(await toggleTracking());
   }, []);
 
-  const handleSearch = useCallback(async (query: string, category: string | null) => {
-    setInbox(await getInbox(query, category, selectedDayRef.current));
-  }, []);
-  const handleClearSearch = useCallback(async () => {
-    setInbox(await getInbox('', null, selectedDayRef.current));
-  }, []);
-  const handleDelete = useCallback(async (eventId: number) => {
-    setInbox(await deleteEvent(eventId));
-  }, []);
-  const handleRestore = useCallback(async () => {
-    setInbox(await restoreDeletedEvent());
-  }, []);
-
-  const handleAddRule = useCallback(async (ruleType: string, category: string, value: string) => {
-    setRules(await addRule(ruleType, category, value));
-  }, []);
-  const handleUpdateRule = useCallback(
-    async (oldKey: string, oldValue: string, ruleType: string, category: string, value: string) => {
-      setRules(await updateRule(oldKey, oldValue, ruleType, category, value));
-    },
-    [],
-  );
-  const handleDeleteRule = useCallback(async (key: string, value: string) => {
-    setRules(await deleteRule(key, value));
-  }, []);
-
-  const handleChangePeriod = useCallback(async (period: string) => {
-    setReport(await getReport(period));
-  }, []);
-  const handleChangeRange = useCallback(async (startIso: string, endIso: string) => {
-    setReport(await getReportRange(startIso, endIso));
-  }, []);
-  const handleExportCsvReport = useCallback(async () => {
-    if (!report) return;
-    const result = await exportCsvRange(report.startIso, report.endIso);
-    if (result.message) setSettingsMessage(result.message);
-  }, [report]);
-
-  const handleSaveSettings = useCallback(async (payload: Record<string, unknown>) => {
-    const result = await saveSettings(payload);
-    setSettings(result);
-    setSettingsMessage(result.error ? '' : '저장했습니다.');
-  }, []);
-  const handleToggleExcludeSelf = useCallback(async (enabled: boolean) => {
-    setSettings(await toggleExcludeSelf(enabled));
-    setSettingsMessage(enabled ? '시간 관리자 앱을 기록에서 제외합니다.' : '시간 관리자 앱도 기록합니다.');
-  }, []);
-  const handleToggleAutoBackup = useCallback(async (enabled: boolean) => {
-    setSettings(await toggleAutoBackup(enabled));
-    setSettingsMessage(enabled ? '자동 백업을 켰습니다.' : '자동 백업을 껐습니다.');
-  }, []);
-  const handleToggleStartup = useCallback(async (enabled: boolean) => {
-    const result = await toggleStartup(enabled);
-    setSettings(result);
-    setSettingsMessage(result.error ? '' : enabled ? '시작 시 자동 실행을 켰습니다.' : '시작 시 자동 실행을 껐습니다.');
-  }, []);
-  const handleToggleSettingsNotifications = useCallback(async (enabled: boolean) => {
-    setDashboard(await toggleNotifications(enabled));
-    setSettings(await getSettings());
-    setSettingsMessage(enabled ? '목표·집중 알림을 켰습니다.' : '목표·집중 알림을 껐습니다.');
-  }, []);
-  const handleSetTheme = useCallback(async (nextTheme: 'light' | 'dark') => {
-    setSettings(await setTheme(nextTheme));
-    setSettingsMessage(nextTheme === 'dark' ? '다크 모드를 켰습니다.' : '라이트 모드로 변경했습니다.');
-  }, []);
-  const handleSetProfile = useCallback(async (profile: string) => {
-    setSettings(await setProfile(profile));
-    setSettingsMessage('직업 프리셋을 선택했습니다.');
-  }, []);
-  const handleApplyPreset = useCallback(async () => {
-    setSettings(await applyPreset());
-    setSettingsMessage('프리셋 후보 규칙을 적용했습니다.');
-  }, []);
-  const handleRunDiagnostics = useCallback(async () => {
-    setSettings(await runDiagnostics());
-  }, []);
-  const handleExportCsv = useCallback(async () => {
-    const result = await exportCsv();
-    if (result.message) setSettingsMessage(result.message);
-  }, []);
-  const handleExportCsvPeriod = useCallback(async (period: string) => {
-    const result = await exportCsvPeriod(period);
-    if (result.message) setSettingsMessage(result.message);
-  }, []);
-  const handleExportBackup = useCallback(async () => {
-    const result = await exportBackup();
-    if (result.message) setSettingsMessage(result.message);
-  }, []);
-  const handleRestoreBackup = useCallback(async () => {
-    const result = await restoreBackup();
-    if (result.message) setSettingsMessage(result.message);
-    if (result.dailyGoalMinutes !== undefined) {
-      setSettings(result as SettingsData);
-      // 복원 시 DB·규칙·설정이 전부 교체되므로 모든 탭 캐시 무효화
-      setInbox(null);
-      setReview(null);
-      setRules(null);
-      setReport(null);
-      setDashboard(await getDashboard(selectedDayRef.current));
-    }
-  }, []);
+  const inboxHandlers = useInboxHandlers(selectedDayRef, setInbox);
+  const rulesHandlers = useRulesHandlers(setRules, setToast);
+  const reportHandlers = useReportHandlers(report, setReport, setToast);
+  const settingsHandlers = useSettingsHandlers({
+    setSettings,
+    setDashboard,
+    setInbox,
+    setReview,
+    setRules,
+    setReport,
+    setToast,
+    selectedDayRef,
+  });
 
   const meta = PAGE_META[activePage] ?? PAGE_META.dashboard;
   const settingsFormKey = settings
@@ -321,39 +223,51 @@ function App() {
           {activePage === 'inbox' && inbox && (
             <Inbox
               data={inbox}
-              onSearch={handleSearch}
-              onClearSearch={handleClearSearch}
-              onDelete={handleDelete}
-              onRestore={handleRestore}
+              onSearch={inboxHandlers.handleSearch}
+              onClearSearch={inboxHandlers.handleClearSearch}
+              onDelete={inboxHandlers.handleDelete}
+              onRestore={inboxHandlers.handleRestore}
             />
           )}
           {activePage === 'review' && review && <Review data={review} />}
           {activePage === 'rules' && rules && (
-            <Rules data={rules} onAdd={handleAddRule} onUpdate={handleUpdateRule} onDelete={handleDeleteRule} />
+            <Rules
+              data={rules}
+              onAdd={rulesHandlers.handleAddRule}
+              onUpdate={rulesHandlers.handleUpdateRule}
+              onDelete={rulesHandlers.handleDeleteRule}
+            />
           )}
-          {activePage === 'report' && report && <Report data={report} onChangePeriod={handleChangePeriod} onChangeRange={handleChangeRange} onExportCsv={handleExportCsvReport} />}
+          {activePage === 'report' && report && (
+            <Report
+              data={report}
+              onChangePeriod={reportHandlers.handleChangePeriod}
+              onChangeRange={reportHandlers.handleChangeRange}
+              onExportCsv={reportHandlers.handleExportCsvReport}
+            />
+          )}
           {activePage === 'settings' && settings && (
             <SettingsPage
               key={settingsFormKey}
               data={settings}
-              message={settingsMessage}
-              onSave={handleSaveSettings}
-              onToggleExcludeSelf={handleToggleExcludeSelf}
-              onToggleAutoBackup={handleToggleAutoBackup}
-              onToggleStartup={handleToggleStartup}
-              onToggleNotifications={handleToggleSettingsNotifications}
-              onToggleTheme={handleSetTheme}
-              onSetProfile={handleSetProfile}
-              onApplyPreset={handleApplyPreset}
-              onRunDiagnostics={handleRunDiagnostics}
-              onExportCsv={handleExportCsv}
-              onExportCsvPeriod={handleExportCsvPeriod}
-              onExportBackup={handleExportBackup}
-              onRestoreBackup={handleRestoreBackup}
+              onSave={settingsHandlers.handleSaveSettings}
+              onToggleExcludeSelf={settingsHandlers.handleToggleExcludeSelf}
+              onToggleAutoBackup={settingsHandlers.handleToggleAutoBackup}
+              onToggleStartup={settingsHandlers.handleToggleStartup}
+              onToggleNotifications={settingsHandlers.handleToggleSettingsNotifications}
+              onToggleTheme={settingsHandlers.handleSetTheme}
+              onSetProfile={settingsHandlers.handleSetProfile}
+              onApplyPreset={settingsHandlers.handleApplyPreset}
+              onRunDiagnostics={settingsHandlers.handleRunDiagnostics}
+              onExportCsv={settingsHandlers.handleExportCsv}
+              onExportCsvPeriod={settingsHandlers.handleExportCsvPeriod}
+              onExportBackup={settingsHandlers.handleExportBackup}
+              onRestoreBackup={settingsHandlers.handleRestoreBackup}
             />
           )}
         </div>
       </main>
+      {toast && <div className="tm-toast">{toast}</div>}
     </div>
   );
 }

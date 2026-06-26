@@ -31,7 +31,6 @@ interface SettingsProps {
   onExportCsvPeriod: (period: string) => void;
   onExportBackup: () => void;
   onRestoreBackup: () => void;
-  message: string;
 }
 
 export default function Settings({
@@ -49,7 +48,6 @@ export default function Settings({
   onExportCsvPeriod,
   onExportBackup,
   onRestoreBackup,
-  message,
 }: SettingsProps) {
   const [csvPeriod, setCsvPeriod] = useState(PERIOD_OPTIONS[0]);
   const [form, setForm] = useState({
@@ -200,11 +198,6 @@ export default function Settings({
       </div>
 
       {data.error && <div className="tm-rule-error">{data.error}</div>}
-      {message && (
-        <div className="tm-settings-message" role="status" aria-live="polite">
-          {message}
-        </div>
-      )}
 
       <div className="tm-settings-bottom">
         <button className="tm-btn-small tm-btn-primary" type="button" onClick={() => onSave(form)}>

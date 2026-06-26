@@ -1,15 +1,38 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import TYPE_CHECKING
 
 from time_manager.formatting import _format_seconds
 from time_manager.models import Category
 from time_manager.storage import ActivityStore
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from time_manager.settings import AppSettings, SettingsStore
+    from time_manager.tracker import ActivityTracker
+
+
+class WebApiBase:
+    """Mixin base: declares shared instance attributes for type checkers."""
+
+    store: ActivityStore
+    tracker: ActivityTracker
+    settings: AppSettings
+    settings_store: SettingsStore
+    rules_path: Path
+
 _CATEGORY_LABELS = {
     Category.PRODUCTIVE: "생산적",
     Category.UNPRODUCTIVE: "비생산적",
     Category.NEUTRAL: "중립",
+}
+
+CATEGORY_COLORS = {
+    Category.PRODUCTIVE: "#7FA98A",
+    Category.UNPRODUCTIVE: "#DB9163",
+    Category.NEUTRAL: "#99ABBE",
 }
 
 _STAT_BADGES = {
