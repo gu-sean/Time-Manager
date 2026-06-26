@@ -292,3 +292,13 @@ def rule_key_for_selection(rule_type: str, category: str) -> str:
     return f"{prefix}_apps"
 
 
+def rule_from_candidate(label: str, category: Category) -> tuple[str, str]:
+    prefix = "productive" if category == Category.PRODUCTIVE else "unproductive"
+    if label.lower().endswith(".exe"):
+        return f"{prefix}_apps", label
+    if "." in label and " " not in label:
+        domain = _domain_from_url(label) or label
+        return f"{prefix}_domains", domain
+    return f"{prefix}_title_keywords", label
+
+

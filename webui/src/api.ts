@@ -4,19 +4,17 @@ declare global {
   interface Window {
     pywebview?: {
       api: {
-        get_dashboard(): Promise<DashboardData>;
-        change_day(delta: number): Promise<DashboardData>;
-        return_to_today(): Promise<DashboardData>;
+        get_dashboard(dateIso?: string | null): Promise<DashboardData>;
         toggle_notifications(enabled: boolean): Promise<DashboardData>;
         toggle_tracking(): Promise<DashboardData>;
         get_current_activity(): Promise<CurrentActivity | null>;
         send_focus_notification(title: string, body: string): Promise<void>;
-        get_inbox(query?: string, category?: string | null): Promise<InboxData>;
+        get_inbox(query?: string, category?: string | null, dateIso?: string | null): Promise<InboxData>;
         reclassify_event(eventId: number, category: string): Promise<InboxData>;
         save_event_as_rule(eventId: number, label: string, category: string): Promise<InboxData>;
         delete_event(eventId: number): Promise<InboxData>;
         restore_deleted_event(): Promise<InboxData>;
-        get_review(): Promise<ReviewData>;
+        get_review(dateIso?: string | null): Promise<ReviewData>;
         get_rules(): Promise<RulesData>;
         add_rule(ruleType: string, category: string, value: string): Promise<RulesData>;
         update_rule(oldKey: string, oldValue: string, ruleType: string, category: string, value: string): Promise<RulesData>;
@@ -94,18 +92,8 @@ function hasPywebview(): boolean {
   return typeof window !== 'undefined' && !!window.pywebview;
 }
 
-export async function getDashboard(): Promise<DashboardData> {
-  if (hasPywebview()) return window.pywebview!.api.get_dashboard();
-  return mockDashboard;
-}
-
-export async function changeDay(delta: number): Promise<DashboardData> {
-  if (hasPywebview()) return window.pywebview!.api.change_day(delta);
-  return mockDashboard;
-}
-
-export async function returnToToday(): Promise<DashboardData> {
-  if (hasPywebview()) return window.pywebview!.api.return_to_today();
+export async function getDashboard(dateIso?: string): Promise<DashboardData> {
+  if (hasPywebview()) return window.pywebview!.api.get_dashboard(dateIso ?? null);
   return mockDashboard;
 }
 
@@ -133,8 +121,8 @@ export async function sendFocusNotification(title: string, body: string): Promis
   }
 }
 
-export async function getInbox(query = '', category: string | null = null): Promise<InboxData> {
-  if (hasPywebview()) return window.pywebview!.api.get_inbox(query, category);
+export async function getInbox(query = '', category: string | null = null, dateIso?: string): Promise<InboxData> {
+  if (hasPywebview()) return window.pywebview!.api.get_inbox(query, category, dateIso ?? null);
   if (!query && !category) return mockInbox;
   return { ...mockInbox, searchActive: true, resultCount: mockInbox.records.length };
 }
@@ -200,8 +188,8 @@ const MOCK_REVIEW: ReviewData = {
   },
 };
 
-export async function getReview(): Promise<ReviewData> {
-  if (hasPywebview()) return window.pywebview!.api.get_review();
+export async function getReview(dateIso?: string): Promise<ReviewData> {
+  if (hasPywebview()) return window.pywebview!.api.get_review(dateIso ?? null);
   return MOCK_REVIEW;
 }
 

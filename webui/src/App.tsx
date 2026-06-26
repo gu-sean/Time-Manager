@@ -11,7 +11,6 @@ import SettingsPage from './components/Settings';
 import {
   addRule,
   applyPreset,
-  changeDay,
   deleteEvent,
   deleteRule,
   exportBackup,
@@ -27,7 +26,6 @@ import {
   getSettings,
   restoreBackup,
   restoreDeletedEvent,
-  returnToToday,
   runDiagnostics,
   saveSettings,
   updateRule,
@@ -53,8 +51,22 @@ const PAGE_META: Record<string, { title: string; sub: string }> = {
 
 const POLL_MS = 5000;
 
+function localDateIso(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function shiftDateIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const shifted = new Date(y, m - 1, d + days);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`;
+}
+
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
+  const [selectedDay, setSelectedDay] = useState<string>(localDateIso);
+  const selectedDayRef = useRef<string>(selectedDay);
+  const prevDayRef = useRef<string>(selectedDay);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [inbox, setInbox] = useState<InboxData | null>(null);
   const [review, setReview] = useState<ReviewData | null>(null);
@@ -65,7 +77,13 @@ function App() {
   const pollRef = useRef<number | undefined>(undefined);
 
   const refresh = useCallback(async () => {
-    const data = await getDashboard();
+    const today = localDateIso();
+    if (selectedDayRef.current !== today && selectedDayRef.current === prevDayRef.current) {
+      selectedDayRef.current = today;
+      setSelectedDay(today);
+    }
+    prevDayRef.current = today;
+    const data = await getDashboard(selectedDayRef.current);
     setDashboard(data);
   }, []);
 
@@ -101,10 +119,10 @@ function App() {
 
   useEffect(() => {
     if (activePage === 'inbox' && !inbox) {
-      waitForApi().then(() => getInbox().then(setInbox));
+      waitForApi().then(() => getInbox('', null, selectedDayRef.current).then(setInbox));
     }
     if (activePage === 'review' && !review) {
-      waitForApi().then(() => getReview().then(setReview));
+      waitForApi().then(() => getReview(selectedDayRef.current).then(setReview));
     }
     if (activePage === 'rules' && !rules) {
       waitForApi().then(() => getRules().then(setRules));
@@ -117,23 +135,28 @@ function App() {
     }
   }, [activePage, inbox, review, rules, report, settings]);
 
-  const refreshSecondaryTabs = useCallback(async () => {
-    if (activePage === 'inbox') setInbox(await getInbox());
-    if (activePage === 'review') setReview(await getReview());
+  const navigateDay = useCallback(async (newDay: string) => {
+    selectedDayRef.current = newDay;
+    setSelectedDay(newDay);
+    setDashboard(await getDashboard(newDay));
+    if (activePage === 'inbox') setInbox(await getInbox('', null, newDay));
+    if (activePage === 'review') setReview(await getReview(newDay));
   }, [activePage]);
 
   const handlePrevDay = useCallback(async () => {
-    setDashboard(await changeDay(-1));
-    await refreshSecondaryTabs();
-  }, [refreshSecondaryTabs]);
+    await navigateDay(shiftDateIso(selectedDay, -1));
+  }, [selectedDay, navigateDay]);
+
   const handleNextDay = useCallback(async () => {
-    setDashboard(await changeDay(1));
-    await refreshSecondaryTabs();
-  }, [refreshSecondaryTabs]);
+    const today = localDateIso();
+    const next = shiftDateIso(selectedDay, 1);
+    await navigateDay(next <= today ? next : today);
+  }, [selectedDay, navigateDay]);
+
   const handleToday = useCallback(async () => {
-    setDashboard(await returnToToday());
-    await refreshSecondaryTabs();
-  }, [refreshSecondaryTabs]);
+    await navigateDay(localDateIso());
+  }, [navigateDay]);
+
   const handleToggleFocus = useCallback(async (enabled: boolean) => {
     setDashboard(await toggleNotifications(enabled));
     setSettings(await getSettings());
@@ -155,10 +178,10 @@ function App() {
   }, []);
 
   const handleSearch = useCallback(async (query: string, category: string | null) => {
-    setInbox(await getInbox(query, category));
+    setInbox(await getInbox(query, category, selectedDayRef.current));
   }, []);
   const handleClearSearch = useCallback(async () => {
-    setInbox(await getInbox());
+    setInbox(await getInbox('', null, selectedDayRef.current));
   }, []);
   const handleDelete = useCallback(async (eventId: number) => {
     setInbox(await deleteEvent(eventId));
@@ -252,7 +275,7 @@ function App() {
       setReview(null);
       setRules(null);
       setReport(null);
-      setDashboard(await getDashboard());
+      setDashboard(await getDashboard(selectedDayRef.current));
     }
   }, []);
 
