@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SettingsData } from '../types';
+import type { SettingsData, UpdateInfo } from '../types';
 import Toggle from './Toggle';
 
 const PRESET_EMOJI: Record<string, string> = {
@@ -31,6 +31,8 @@ interface SettingsProps {
   onExportCsvPeriod: (period: string) => void;
   onExportBackup: () => void;
   onRestoreBackup: () => void;
+  onCheckUpdate: () => Promise<UpdateInfo>;
+  onExportLogs: () => void;
 }
 
 export default function Settings({
@@ -48,8 +50,20 @@ export default function Settings({
   onExportCsvPeriod,
   onExportBackup,
   onRestoreBackup,
+  onCheckUpdate,
+  onExportLogs,
 }: SettingsProps) {
   const [csvPeriod, setCsvPeriod] = useState(PERIOD_OPTIONS[0]);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateInfo(null);
+    const result = await onCheckUpdate();
+    setUpdateInfo(result);
+    setCheckingUpdate(false);
+  };
   const [form, setForm] = useState({
     dailyGoalMinutes: data.dailyGoalMinutes,
     weeklyGoalMinutes: data.weeklyGoalMinutes,
@@ -188,12 +202,66 @@ export default function Settings({
             <button className="tm-btn-small tm-btn-primary" type="button" onClick={onRunDiagnostics}>
               진단 실행
             </button>
+            <button className="tm-btn-small tm-btn-ghost" type="button" onClick={handleCheckUpdate} disabled={checkingUpdate}>
+              {checkingUpdate ? '확인 중…' : '업데이트 확인'}
+            </button>
           </div>
+          {updateInfo && (
+            <div style={{ marginTop: 8, fontSize: 11.5 }}>
+              {updateInfo.error ? (
+                <span style={{ color: '#CB8056' }}>{updateInfo.error}</span>
+              ) : updateInfo.hasUpdate ? (
+                <span style={{ color: '#6F9A7C', fontWeight: 700 }}>
+                  새 버전 v{updateInfo.latest} 출시 —{' '}
+                  <a href={updateInfo.url} target="_blank" rel="noreferrer" style={{ color: '#6F9A7C' }}>
+                    다운로드
+                  </a>
+                </span>
+              ) : (
+                <span style={{ color: '#918B80' }}>최신 버전입니다 (v{updateInfo.current})</span>
+              )}
+            </div>
+          )}
           {data.diagnosticResults && (
             <pre style={{ fontSize: 10.5, color: '#6E6759', whiteSpace: 'pre-wrap', fontFamily: 'inherit', marginTop: 8 }}>
               {data.diagnosticResults}
             </pre>
           )}
+
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0ECE3' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#6E6759', marginBottom: 6 }}>문제 신고</div>
+            <div style={{ fontSize: 11, color: '#A79F92', marginBottom: 8 }}>
+              버그를 발견하셨나요? 로그를 내보내고 구글폼에 신고해주세요.
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                className="tm-btn-small tm-btn-ghost"
+                type="button"
+                onClick={() => navigator.clipboard.writeText(data.diagnosticInfo)}
+                aria-label="진단 정보 클립보드 복사"
+              >
+                진단 정보 복사
+              </button>
+              <button
+                className="tm-btn-small tm-btn-ghost"
+                type="button"
+                onClick={onExportLogs}
+                aria-label="로그 파일 바탕화면에 내보내기"
+              >
+                로그 내보내기
+              </button>
+              <a
+                href="https://docs.google.com/forms/d/e/1FAIpQLSfK9N_zYOdQmuJWZQehMD4f20VADEFw_fSLBUUMCdCW6J0o4g/viewform?usp=publish-editor"
+                target="_blank"
+                rel="noreferrer"
+                className="tm-btn-small tm-btn-primary"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                aria-label="문제 신고하기"
+              >
+                문제 신고하기
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 

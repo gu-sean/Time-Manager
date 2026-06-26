@@ -2,9 +2,11 @@ import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import {
   applyPreset,
+  checkUpdate,
   exportBackup,
   exportCsv,
   exportCsvPeriod,
+  exportLogs,
   getDashboard,
   getSettings,
   restoreBackup,
@@ -17,7 +19,7 @@ import {
   toggleNotifications,
   toggleStartup,
 } from '../api';
-import type { DashboardData, InboxData, ReportData, ReviewData, RulesData, SettingsData } from '../types';
+import type { DashboardData, InboxData, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
 
 interface Setters {
   setSettings: (data: SettingsData) => void;
@@ -87,6 +89,15 @@ export function useSettingsHandlers({
     setSettings(await runDiagnostics());
   }, []);
 
+  const handleCheckUpdate = useCallback(async (): Promise<UpdateInfo> => {
+    return checkUpdate();
+  }, []);
+
+  const handleExportLogs = useCallback(async () => {
+    const result = await exportLogs();
+    if (result.message) setToast(result.message);
+  }, []);
+
   const handleExportCsv = useCallback(async () => {
     const result = await exportCsv();
     if (result.message) setToast(result.message);
@@ -125,6 +136,8 @@ export function useSettingsHandlers({
     handleSetProfile,
     handleApplyPreset,
     handleRunDiagnostics,
+    handleCheckUpdate,
+    handleExportLogs,
     handleExportCsv,
     handleExportCsvPeriod,
     handleExportBackup,

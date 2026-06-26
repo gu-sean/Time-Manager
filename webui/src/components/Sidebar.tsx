@@ -70,18 +70,22 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
         <div className="tm-brand-icon">◷</div>
         <div>
           <div className="tm-brand-name">시간관리</div>
-          <div className="tm-brand-version">v0.4.0 · 베타</div>
+          <div className="tm-brand-version">v0.5.0 · 베타</div>
         </div>
       </div>
 
-      <nav className="tm-nav-list">
+      <nav className="tm-nav-list" aria-label="메인 메뉴">
         {NAV_ITEMS.map((item) => (
           <div
             key={item.key}
             className={`tm-nav-item${activePage === item.key ? ' active' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-current={activePage === item.key ? 'page' : undefined}
             onClick={() => onSelectPage(item.key)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPage(item.key); } }}
           >
-            <span>{item.icon}</span>
+            <span aria-hidden="true">{item.icon}</span>
             <span>{item.label}</span>
           </div>
         ))}

@@ -1,4 +1,4 @@
-import type { CurrentActivity, DashboardData, InboxData, ReportData, ReviewData, RulesData, SettingsData } from './types';
+import type { CurrentActivity, DashboardData, InboxData, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from './types';
 
 declare global {
   interface Window {
@@ -35,6 +35,8 @@ declare global {
         export_csv_range(startIso: string, endIso: string): Promise<{ message: string }>;
         export_backup(): Promise<{ message: string }>;
         restore_backup(): Promise<{ message: string } & Partial<SettingsData>>;
+        check_update(): Promise<UpdateInfo>;
+        export_logs(): Promise<{ message: string }>;
       };
     };
   }
@@ -416,6 +418,16 @@ export async function exportBackup(): Promise<{ message: string }> {
 
 export async function restoreBackup(): Promise<{ message: string } & Partial<SettingsData>> {
   if (hasPywebview()) return window.pywebview!.api.restore_backup();
+  return { message: '' };
+}
+
+export async function checkUpdate(): Promise<UpdateInfo> {
+  if (hasPywebview()) return window.pywebview!.api.check_update();
+  return { hasUpdate: false, latest: '', current: '', url: '', error: '' };
+}
+
+export async function exportLogs(): Promise<{ message: string }> {
+  if (hasPywebview()) return window.pywebview!.api.export_logs();
   return { message: '' };
 }
 

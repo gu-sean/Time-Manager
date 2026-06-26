@@ -72,14 +72,16 @@ export default function Rules({ data, onAdd, onUpdate, onDelete }: RulesProps) {
           {editing ? '규칙 수정' : '규칙 편집기'}
         </div>
         <div className="tm-rule-form">
-          <select className="tm-select" value={ruleType} onChange={(e) => setRuleType(e.target.value)}>
+          <label className="tm-visually-hidden" htmlFor="rule-type">규칙 유형</label>
+          <select id="rule-type" className="tm-select" value={ruleType} onChange={(e) => setRuleType(e.target.value)}>
             {TYPE_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>
             ))}
           </select>
-          <select className="tm-select" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <label className="tm-visually-hidden" htmlFor="rule-category">분류</label>
+          <select id="rule-category" className="tm-select" value={category} onChange={(e) => setCategory(e.target.value)}>
             {CATEGORY_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
@@ -87,8 +89,10 @@ export default function Rules({ data, onAdd, onUpdate, onDelete }: RulesProps) {
             ))}
           </select>
           <input
+            id="rule-value"
             className="tm-rule-input"
             placeholder="값 입력 (예: github.com)"
+            aria-label="규칙 값"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -126,10 +130,14 @@ export default function Rules({ data, onAdd, onUpdate, onDelete }: RulesProps) {
             <div
               className={`tm-rule-row tm-rule-row-clickable${isEditing ? ' editing' : ''}`}
               key={`${rule.key}:${rule.value}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`${rule.value} 규칙 수정`}
+              aria-pressed={isEditing}
               onClick={() => startEdit(rule)}
-              title="클릭해서 이 규칙을 수정"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEdit(rule); } }}
             >
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#C0B8A9' }}>{rule.priority}</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#C0B8A9' }} aria-hidden="true">{rule.priority}</span>
               <span className="tm-rule-row-type">{rule.ruleType}</span>
               <span className="tm-rule-row-value">{rule.value}</span>
               <span className="tm-cat-pill" style={{ background: bg, color: fg }}>
@@ -138,13 +146,14 @@ export default function Rules({ data, onAdd, onUpdate, onDelete }: RulesProps) {
               <button
                 className="tm-rule-row-delete"
                 type="button"
+                aria-label={`${rule.value} 규칙 삭제`}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isEditing) resetForm();
                   onDelete(rule.key, rule.value);
                 }}
               >
-                🗑
+                <span aria-hidden="true">🗑</span>
               </button>
             </div>
           );

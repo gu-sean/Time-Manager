@@ -70,16 +70,18 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
           <div className="tm-card-title">활동 기록</div>
           <div className="tm-search-bar">
             <div className="tm-search-input-wrap">
-              <span>🔍</span>
+              <span aria-hidden="true">🔍</span>
               <input
                 className="tm-search-input"
                 placeholder="활동 검색"
+                aria-label="활동 검색"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
               />
             </div>
-            <select className="tm-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+            <label className="tm-visually-hidden" htmlFor="inbox-category-filter">분류 필터</label>
+            <select id="inbox-category-filter" className="tm-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
               <option value="">전체</option>
               {CATEGORY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -97,7 +99,7 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
         </div>
 
         {data.searchActive && data.resultCount !== null && (
-          <div style={{ fontSize: 11.5, color: '#968F82', marginBottom: 8 }}>
+          <div role="status" aria-live="polite" style={{ fontSize: 11.5, color: '#968F82', marginBottom: 8 }}>
             최근 30일 · 검색 결과 {data.resultCount}건
           </div>
         )}
@@ -114,7 +116,12 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
             key={row.id}
             className={`tm-table-row${selected?.id === row.id ? ' selected' : ''}`}
             style={{ gridTemplateColumns: '130px 90px 1fr 90px' }}
+            role="button"
+            tabIndex={0}
+            aria-label={`${row.time} ${row.label} ${row.duration} 선택`}
+            aria-pressed={selected?.id === row.id}
             onClick={() => setSelected(row)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(row); } }}
           >
             <span style={{ color: '#6E6759', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{row.time}</span>
             <span>

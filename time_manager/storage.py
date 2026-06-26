@@ -685,10 +685,10 @@ class ActivityStore:
                 (start, end),
             ).fetchall()
 
-        with output_path.open("w", newline="", encoding="utf-8") as handle:
+        with output_path.open("w", newline="", encoding="utf-8-sig") as handle:
             writer = csv.writer(handle)
-            writer.writerow(["started_at", "seconds", "category", "app_name", "window_title", "url", "reason"])
-            writer.writerows(tuple(_sanitize_csv_cell(cell) for cell in row) for row in rows)
+            writer.writerow(_CSV_HEADERS)
+            writer.writerows(_format_csv_row(row) for row in rows)
         return len(rows)
 
     def daily_summaries(self, days: int) -> list[DaySummary]:
@@ -825,6 +825,13 @@ class ActivityStore:
             grid[weekday][int(hour)] = int(total)
         return grid
 
+    def close(self) -> None:
+        """Close the calling thread's SQLite connection (call before encrypting the DB file)."""
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            del self._local.conn
+
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         if not hasattr(self._local, 'conn'):
@@ -881,12 +888,52 @@ class ActivityStore:
 # 창 제목·URL은 외부 입력이므로 =cmd|'/c calc'!A1 같은 수식 인젝션(CWE-1236) 위험이 있음.
 _CSV_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
 
+_CATEGORY_KO: dict[str, str] = {
+    "productive": "생산적",
+    "unproductive": "비생산적",
+    "neutral": "중립",
+}
+
+_CSV_HEADERS = ["날짜", "시작 시간", "종료 시간", "소요 시간", "분류", "앱", "창 제목", "URL", "분류 근거"]
+
 
 def _sanitize_csv_cell(cell: object) -> object:
     # 수식 시작 문자 앞에 어포스트로피를 붙여 리터럴 텍스트로 강제. 숫자 셀은 그대로 반환.
     if isinstance(cell, str) and cell.startswith(_CSV_FORMULA_TRIGGERS):
         return "'" + cell
     return cell
+
+
+def _fmt_duration(seconds: int) -> str:
+    h, rem = divmod(max(0, seconds), 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}"
+
+
+def _format_csv_row(raw: tuple) -> tuple:
+    started_at_raw, seconds, category, app_name, window_title, url, reason = raw
+    secs = int(seconds) if seconds else 0
+    try:
+        dt_start = datetime.fromisoformat(str(started_at_raw))
+        dt_end = dt_start + timedelta(seconds=secs)
+        date_str = dt_start.strftime("%Y-%m-%d")
+        start_str = dt_start.strftime("%H:%M:%S")
+        end_str = dt_end.strftime("%H:%M:%S")
+    except (ValueError, TypeError):
+        date_str = str(started_at_raw)
+        start_str = ""
+        end_str = ""
+    return (
+        date_str,
+        start_str,
+        end_str,
+        _fmt_duration(secs),
+        _CATEGORY_KO.get(str(category), str(category)),
+        _sanitize_csv_cell(app_name),
+        _sanitize_csv_cell(window_title),
+        _sanitize_csv_cell(url) if url else "",
+        _sanitize_csv_cell(reason) if reason else "",
+    )
 
 
 def _daily_rows(start_day: date, days: int, rows: list[tuple[str, str, int]]) -> list[DaySummary]:

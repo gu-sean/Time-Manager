@@ -187,6 +187,14 @@ export interface ReportData {
   error?: string;
 }
 
+export interface UpdateInfo {
+  hasUpdate: boolean;
+  latest: string;
+  current: string;
+  url: string;
+  error: string;
+}
+
 export interface PresetItem {
   key: string;
   value: string;

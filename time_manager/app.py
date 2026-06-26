@@ -53,7 +53,17 @@ def _bootstrap(project_root: Path):
 
 def run_webview(project_root: Path) -> None:
     from time_manager.webapp import run_webview as _run_webview
+    from time_manager.db_crypto import decrypt_if_needed, encrypt_and_replace
+
+    data_dir = user_data_dir(project_root)
+    db_path = data_dir / "activity.sqlite3"
+    decrypt_if_needed(db_path)
 
     rules_path, settings_store, _settings, store, tracker = _bootstrap(project_root)
     tracker.start()
-    _run_webview(project_root, store=store, tracker=tracker, settings_store=settings_store, rules_path=rules_path)
+    try:
+        _run_webview(project_root, store=store, tracker=tracker, settings_store=settings_store, rules_path=rules_path)
+    finally:
+        tracker.stop()
+        store.close()
+        encrypt_and_replace(db_path)

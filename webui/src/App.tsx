@@ -259,6 +259,8 @@ function App() {
               onSetProfile={settingsHandlers.handleSetProfile}
               onApplyPreset={settingsHandlers.handleApplyPreset}
               onRunDiagnostics={settingsHandlers.handleRunDiagnostics}
+              onCheckUpdate={settingsHandlers.handleCheckUpdate}
+              onExportLogs={settingsHandlers.handleExportLogs}
               onExportCsv={settingsHandlers.handleExportCsv}
               onExportCsvPeriod={settingsHandlers.handleExportCsvPeriod}
               onExportBackup={settingsHandlers.handleExportBackup}

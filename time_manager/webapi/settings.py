@@ -156,6 +156,29 @@ class SettingsMixin(WebApiBase):
             self.tracker.classifier = apply_profile_preset(self.rules_path, self.settings.onboarding_profile)
         return self.get_settings()
 
+    def export_logs(self) -> dict[str, str]:
+        import shutil
+        from datetime import datetime
+        from pathlib import Path
+
+        log_path = self.store.db_path.parent / "time-manager.log"
+        if not log_path.exists():
+            return {"message": "로그 파일이 없습니다."}
+        desktop = Path.home() / "Desktop"
+        if not desktop.exists():
+            desktop = Path.home() / "Documents"
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        dest = desktop / f"time-manager-log-{stamp}.txt"
+        try:
+            shutil.copy2(log_path, dest)
+            return {"message": f"로그를 저장했습니다: {dest.name}"}
+        except OSError as exc:
+            return {"message": f"로그 내보내기 실패: {exc}"}
+
+    def check_update(self) -> dict[str, Any]:
+        from time_manager.updater import check_for_update
+        return check_for_update()
+
     def run_diagnostics(self) -> dict[str, Any]:
         settings_path = self.settings_store.path if self.settings_store else self.store.db_path.parent / "settings.json"
         results = _run_diagnostics(
