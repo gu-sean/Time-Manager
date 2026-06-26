@@ -70,7 +70,7 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
         <div className="tm-brand-icon">◷</div>
         <div>
           <div className="tm-brand-name">시간관리</div>
-          <div className="tm-brand-version">v0.5.0 · 베타</div>
+          <div className="tm-brand-version">v1.0.0</div>
         </div>
       </div>
 

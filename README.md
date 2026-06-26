@@ -39,8 +39,7 @@ Windows용 데스크탑 시간 추적 앱입니다.
 - 다크 모드 / 라이트 모드
 - Windows 시작 시 자동 실행
 
-### 업데이트 및 진단
-- GitHub Releases API로 최신 버전 확인
+### 진단
 - 진단 실행, 로그 내보내기, Google Forms 문제 신고 링크 내장
 
 ---
@@ -55,9 +54,7 @@ Windows용 데스크탑 시간 추적 앱입니다.
 | 암호화 | cryptography (Fernet), keyring |
 | Windows 플랫폼 | uiautomation, pystray, winotify, Pillow |
 | 테스트 | pytest, Vitest 3, React Testing Library |
-| CI/CD | GitHub Actions |
 | 패키징 | PyInstaller + Inno Setup |
-
 
 ---
 
