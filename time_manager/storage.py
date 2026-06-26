@@ -1,5 +1,6 @@
-import sqlite3
 import csv
+import sqlite3
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -158,6 +159,7 @@ class ActivityStore:
         self.db_path = db_path
         self.merge_gap_seconds = merge_gap_seconds
         self.connection_timeout_seconds = connection_timeout_seconds
+        self._local = threading.local()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -324,31 +326,26 @@ class ActivityStore:
         end_day = date.today()
         start_day = end_day - timedelta(days=max(0, days - 1))
         start, end = self._period_bounds(start_day, end_day)
-        like = f"%{query.strip().lower()}%"
-        where_category = "AND category = ?" if category else ""
         params: list[object] = [start, end]
+        sql_parts = [
+            """
+            SELECT id, started_at, seconds, category, app_name, window_title, url, reason
+            FROM activity_events
+            WHERE started_at >= ? AND started_at < ?
+                AND deleted_at IS NULL
+            """
+        ]
         if query.strip():
+            like = f"%{query.strip().lower()}%"
+            sql_parts.append("    AND (LOWER(app_name) LIKE ? OR LOWER(window_title) LIKE ? OR LOWER(COALESCE(url, '')) LIKE ?)")
             params += [like, like, like]
-            where_query = "AND (LOWER(app_name) LIKE ? OR LOWER(window_title) LIKE ? OR LOWER(COALESCE(url, '')) LIKE ?)"
-        else:
-            where_query = ""
         if category:
+            sql_parts.append("    AND category = ?")
             params.append(category.value)
+        sql_parts.append("ORDER BY started_at DESC\nLIMIT ?")
         params.append(limit)
         with self._connection() as conn:
-            rows = conn.execute(
-                f"""
-                SELECT id, started_at, seconds, category, app_name, window_title, url, reason
-                FROM activity_events
-                WHERE started_at >= ? AND started_at < ?
-                    AND deleted_at IS NULL
-                    {where_query}
-                    {where_category}
-                ORDER BY started_at DESC
-                LIMIT ?
-                """,
-                params,
-            ).fetchall()
+            rows = conn.execute("\n".join(sql_parts), params).fetchall()
         return [
             RecentRow(
                 id=int(row[0]),
@@ -474,30 +471,28 @@ class ActivityStore:
         category: Category | None = None,
         limit: int = 10,
     ) -> list[BreakdownRow]:
-        where_category = "AND category = ?" if category else ""
-        params: tuple[object, ...] = (
+        params: list[object] = [
             started_at.isoformat(timespec="seconds"),
             ended_at.isoformat(timespec="seconds"),
-            *((category.value,) if category else ()),
-            limit,
-        )
+        ]
+        sql_parts = [
+            """
+            SELECT
+                COALESCE(NULLIF(url, ''), NULLIF(window_title, ''), app_name) AS target,
+                category,
+                COALESCE(SUM(seconds), 0) AS total_seconds
+            FROM activity_events
+            WHERE started_at >= ? AND started_at < ?
+                AND deleted_at IS NULL
+            """
+        ]
+        if category:
+            sql_parts.append("    AND category = ?")
+            params.append(category.value)
+        sql_parts.append("GROUP BY target, category\nORDER BY total_seconds DESC\nLIMIT ?")
+        params.append(limit)
         with self._connection() as conn:
-            rows = conn.execute(
-                f"""
-                SELECT
-                    COALESCE(NULLIF(url, ''), NULLIF(window_title, ''), app_name) AS target,
-                    category,
-                    COALESCE(SUM(seconds), 0) AS total_seconds
-                FROM activity_events
-                WHERE started_at >= ? AND started_at < ?
-                    AND deleted_at IS NULL
-                    {where_category}
-                GROUP BY target, category
-                ORDER BY total_seconds DESC
-                LIMIT ?
-                """,
-                params,
-            ).fetchall()
+            rows = conn.execute("\n".join(sql_parts), params).fetchall()
         return [BreakdownRow(row[0], Category(row[1]), int(row[2])) for row in rows]
 
     def compare_days(self, current_day: date, previous_day: date) -> DayComparison:
@@ -642,6 +637,10 @@ class ActivityStore:
         return removed if removed and removed > 0 else 0
 
     def _vacuum(self) -> None:
+        # VACUUM은 exclusive 접근이 필요하므로 스레드 로컬 연결을 먼저 해제
+        if hasattr(self._local, 'conn'):
+            self._local.conn.close()
+            del self._local.conn
         conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds)
         try:
             conn.execute("VACUUM")
@@ -825,12 +824,15 @@ class ActivityStore:
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds)
+        if not hasattr(self._local, 'conn'):
+            self._local.conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds)
+        conn = self._local.conn
         try:
             yield conn
             conn.commit()
-        finally:
-            conn.close()
+        except Exception:
+            conn.rollback()
+            raise
 
     def _init_db(self) -> None:
         with self._connection() as conn:

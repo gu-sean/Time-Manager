@@ -16,7 +16,7 @@ class AppSettings:
     store_window_titles: bool = True
     retention_days: int = 0
     notifications_enabled: bool = True
-    auto_backup_enabled: bool = False
+    auto_backup_enabled: bool = True
     last_auto_backup: str = ""
     theme: str = "light"
 

@@ -245,7 +245,15 @@ function App() {
   const handleRestoreBackup = useCallback(async () => {
     const result = await restoreBackup();
     if (result.message) setSettingsMessage(result.message);
-    if (result.dailyGoalMinutes !== undefined) setSettings(result as SettingsData);
+    if (result.dailyGoalMinutes !== undefined) {
+      setSettings(result as SettingsData);
+      // 복원 시 DB·규칙·설정이 전부 교체되므로 모든 탭 캐시 무효화
+      setInbox(null);
+      setReview(null);
+      setRules(null);
+      setReport(null);
+      setDashboard(await getDashboard());
+    }
   }, []);
 
   const meta = PAGE_META[activePage] ?? PAGE_META.dashboard;

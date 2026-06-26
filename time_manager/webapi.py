@@ -737,7 +737,7 @@ class WebApi:
         self.tracker.unproductive_alert_seconds = self.settings.unproductive_limit_minutes * 60
         if self.tracker.work_end_hour != self.settings.work_end_hour:
             self.tracker.work_end_hour = self.settings.work_end_hour
-            self.tracker._end_of_day_notified_date = ""
+            self.tracker.reset_end_of_day_state()
         return self.get_settings()
 
     def set_theme(self, theme: str) -> dict[str, Any]:
@@ -851,6 +851,8 @@ class WebApi:
             end_day = date.fromisoformat(end_iso)
         except ValueError:
             return {"message": "날짜 형식이 올바르지 않습니다."}
+        if start_day > end_day:
+            return {"message": "시작일이 종료일보다 늦을 수 없습니다."}
         output = webview.windows[0].create_file_dialog(
             webview.SAVE_DIALOG,
             save_filename=f"activity-{start_day.isoformat()}-{end_day.isoformat()}.csv",

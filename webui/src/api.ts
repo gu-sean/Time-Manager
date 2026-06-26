@@ -344,7 +344,7 @@ let mockSettings: SettingsData = {
   presetItems: [],
   excludeSelf: true,
   notificationsEnabled: true,
-  autoBackupEnabled: false,
+  autoBackupEnabled: true,
   startupEnabled: false,
   storeDomainOnly: false,
   storeWindowTitles: true,
@@ -432,8 +432,6 @@ export async function restoreBackup(): Promise<{ message: string } & Partial<Set
 }
 
 export function waitForApi(): Promise<void> {
-  if (!hasPywebview() && typeof window !== 'undefined' && 'pywebview' in window === false) {
-  }
   return new Promise((resolve) => {
     if (hasPywebview()) {
       resolve();
@@ -444,6 +442,6 @@ export function waitForApi(): Promise<void> {
       resolve();
     };
     window.addEventListener('pywebviewready', onReady);
-    setTimeout(resolve, 300);
+    setTimeout(resolve, 2000);
   });
 }

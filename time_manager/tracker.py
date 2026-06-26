@@ -183,6 +183,9 @@ class ActivityTracker:
         self.notifier.send("오늘 하루 수고했어요", body)
         self._end_of_day_notified_date = today
 
+    def reset_end_of_day_state(self) -> None:
+        self._end_of_day_notified_date = ""
+
     def _reset_streak(self) -> None:
         self._streak_category = None
         self._streak_seconds = 0
@@ -218,23 +221,15 @@ class ActivityTracker:
 
     def _should_skip_target(self, target: ActiveTarget) -> bool:
         app_name = target.app_name.lower()
-        if self.exclude_self_app and app_name in {"timemanager.exe", "python.exe", "pythonw.exe"}:
-            title = target.window_title.lower()
-            if "시간 관리 매니저" in title or "time manager" in title or app_name == "timemanager.exe":
+        if self.exclude_self_app:
+            if app_name == "timemanager.exe":
                 return True
+            if app_name in {"python.exe", "pythonw.exe"}:
+                title = target.window_title.lower()
+                if "시간 관리 매니저" in title or "time manager" in title:
+                    return True
         excluded = {item.lower() for item in self.classifier.excluded_apps}
         return app_name in excluded
-
-def _domain_from_url(url: str) -> str | None:
-    normalized = url if "://" in url else f"https://{url}"
-    try:
-        parsed = urlparse(normalized)
-    except ValueError:
-        return None
-    if not parsed.hostname:
-        return None
-    return parsed.hostname.lower().removeprefix("www.")
-
 
 def _domain_url(url: str) -> str:
     normalized = url if "://" in url else f"https://{url}"
