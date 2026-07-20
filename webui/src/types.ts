@@ -136,6 +136,12 @@ export interface RulesData {
   error?: string;
 }
 
+export interface RuleSuggestion {
+  target: string;
+  timeLabel: string;
+  displayTarget: string;
+}
+
 export interface WeekdayBar {
   day: string;
   seconds: number;

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { addRule, deleteRule, updateRule } from '../api';
-import type { RulesData } from '../types';
+import { addRule, applyRuleSuggestion, deleteRule, getRuleSuggestions, updateRule } from '../api';
+import type { RuleSuggestion, RulesData } from '../types';
 
 export function useRulesHandlers(
   setRules: (data: RulesData) => void,
@@ -26,5 +26,22 @@ export function useRulesHandlers(
     setToast(`'${value}' 규칙을 삭제했습니다.`);
   }, []);
 
-  return { handleAddRule, handleUpdateRule, handleDeleteRule };
+  const handleGetRuleSuggestions = useCallback(async (): Promise<RuleSuggestion[]> => {
+    return getRuleSuggestions();
+  }, []);
+
+  const handleApplyRuleSuggestion = useCallback(async (target: string, category: string) => {
+    const result = await applyRuleSuggestion(target, category);
+    setRules(result);
+    if (!result.error) setToast(`'${target}' 규칙을 추가했습니다.`);
+    return result;
+  }, []);
+
+  return {
+    handleAddRule,
+    handleUpdateRule,
+    handleDeleteRule,
+    handleGetRuleSuggestions,
+    handleApplyRuleSuggestion,
+  };
 }

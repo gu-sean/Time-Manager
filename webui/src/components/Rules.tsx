@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { RuleItem, RulesData } from '../types';
+import type { RuleItem, RuleSuggestion, RulesData } from '../types';
 
 const PAGE_SIZE = 20;
 const TYPE_OPTIONS = ['도메인', '앱 이름', '창 제목 키워드'];
@@ -17,6 +17,8 @@ interface RulesProps {
   onAdd: (ruleType: string, category: string, value: string) => void;
   onUpdate: (oldKey: string, oldValue: string, ruleType: string, category: string, value: string) => void;
   onDelete: (key: string, value: string) => void;
+  onGetSuggestions: () => Promise<RuleSuggestion[]>;
+  onApplySuggestion: (target: string, category: string) => Promise<RulesData>;
 }
 
 interface EditTarget {
@@ -24,7 +26,82 @@ interface EditTarget {
   value: string;
 }
 
-export default function Rules({ data, onAdd, onUpdate, onDelete }: RulesProps) {
+function RuleSuggestions({ onGetSuggestions, onApplySuggestion }: Pick<RulesProps, 'onGetSuggestions' | 'onApplySuggestion'>) {
+  const [suggestions, setSuggestions] = useState<RuleSuggestion[] | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    onGetSuggestions().then((result) => {
+      if (!cancelled) setSuggestions(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const dismiss = (target: string) => {
+    setSuggestions((prev) => (prev ? prev.filter((s) => s.target !== target) : prev));
+  };
+
+  const apply = async (target: string, category: string) => {
+    setPending(target);
+    await onApplySuggestion(target, category);
+    setPending(null);
+    dismiss(target);
+  };
+
+  if (!suggestions || suggestions.length === 0) return null;
+
+  return (
+    <div className="tm-card">
+      <div className="tm-card-title" style={{ marginBottom: 6 }}>
+        분류 제안
+      </div>
+      <div style={{ fontSize: 11, color: '#A79F92', marginBottom: 10 }}>
+        최근 자주 등장했지만 아직 규칙이 없는 활동입니다. 분류를 선택하면 규칙으로 등록됩니다.
+      </div>
+      {suggestions.map((s) => (
+        <div
+          key={s.target}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #F0ECE3', flexWrap: 'wrap' }}
+        >
+          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: '#3B362E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {s.displayTarget}
+          </span>
+          <span style={{ fontSize: 11, color: '#A79F92' }}>{s.timeLabel}</span>
+          <button
+            className="tm-btn-small tm-btn-primary"
+            type="button"
+            disabled={pending === s.target}
+            onClick={() => apply(s.target, 'productive')}
+          >
+            생산적
+          </button>
+          <button
+            className="tm-btn-small tm-btn-ghost"
+            type="button"
+            disabled={pending === s.target}
+            onClick={() => apply(s.target, 'unproductive')}
+          >
+            비생산적
+          </button>
+          <button
+            className="tm-btn-small tm-btn-ghost"
+            type="button"
+            aria-label={`${s.displayTarget} 제안 무시`}
+            disabled={pending === s.target}
+            onClick={() => dismiss(s.target)}
+          >
+            무시
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function Rules({ data, onAdd, onUpdate, onDelete, onGetSuggestions, onApplySuggestion }: RulesProps) {
   const [ruleType, setRuleType] = useState(TYPE_OPTIONS[0]);
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
   const [value, setValue] = useState('');
@@ -67,6 +144,8 @@ export default function Rules({ data, onAdd, onUpdate, onDelete }: RulesProps) {
 
   return (
     <div className="tm-page">
+      <RuleSuggestions onGetSuggestions={onGetSuggestions} onApplySuggestion={onApplySuggestion} />
+
       <div className="tm-card">
         <div className="tm-card-title" style={{ marginBottom: 13 }}>
           {editing ? '규칙 수정' : '규칙 편집기'}

@@ -19,6 +19,8 @@ declare global {
         add_rule(ruleType: string, category: string, value: string): Promise<RulesData>;
         update_rule(oldKey: string, oldValue: string, ruleType: string, category: string, value: string): Promise<RulesData>;
         delete_rule(key: string, value: string): Promise<RulesData>;
+        get_rule_suggestions(): Promise<RuleSuggestion[]>;
+        apply_rule_suggestion(target: string, category: string): Promise<RulesData>;
         get_report(period?: string): Promise<ReportData>;
         get_report_range(startIso: string, endIso: string): Promise<ReportData>;
         get_settings(): Promise<SettingsData>;
@@ -263,6 +265,22 @@ export async function updateRule(
 export async function deleteRule(key: string, value: string): Promise<RulesData> {
   if (hasPywebview()) return window.pywebview!.api.delete_rule(key, value);
   mockRules = renumber(mockRules.items.filter((r) => !(r.key === key && r.value === value)));
+  return mockRules;
+}
+
+let mockSuggestions: RuleSuggestion[] = [
+  { target: 'notion.so', timeLabel: '42분', displayTarget: 'notion.so' },
+  { target: 'Slack', timeLabel: '18분', displayTarget: 'Slack' },
+];
+
+export async function getRuleSuggestions(): Promise<RuleSuggestion[]> {
+  if (hasPywebview()) return window.pywebview!.api.get_rule_suggestions();
+  return mockSuggestions;
+}
+
+export async function applyRuleSuggestion(target: string, category: string): Promise<RulesData> {
+  if (hasPywebview()) return window.pywebview!.api.apply_rule_suggestion(target, category);
+  mockSuggestions = mockSuggestions.filter((s) => s.target !== target);
   return mockRules;
 }
 

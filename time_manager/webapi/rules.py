@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from time_manager.formatting import _format_seconds, _truncate
+from time_manager.models import Category
 from time_manager.rules import (
     RuleConflictError,
     load_rules,
     remove_rule_value,
+    rule_from_candidate,
     rule_key_for_selection,
     update_rule_value,
 )
@@ -70,4 +73,30 @@ class RulesMixin(WebApiBase):
 
     def delete_rule(self, key: str, value: str) -> dict[str, Any]:
         self.tracker.classifier = remove_rule_value(self.rules_path, key, value)
+        return self.get_rules()
+
+    def get_rule_suggestions(self, days: int = 14, limit: int = 5) -> list[dict[str, Any]]:
+        candidates = self.store.neutral_candidates_for_range(days, limit=limit)
+        return [
+            {
+                "target": row.label,
+                "timeLabel": _format_seconds(row.seconds),
+                "displayTarget": _truncate(row.label, 60),
+            }
+            for row in candidates
+            if row.seconds > 0
+        ]
+
+    def apply_rule_suggestion(self, target: str, category: str) -> dict[str, Any]:
+        try:
+            cat = Category(category)
+        except ValueError:
+            return {**self.get_rules(), "error": "분류를 선택하세요."}
+        if cat == Category.NEUTRAL:
+            return {**self.get_rules(), "error": "생산적 또는 비생산적만 선택할 수 있습니다."}
+        key, value = rule_from_candidate(target, cat)
+        classifier = self._add_rule_value(key, value)
+        if classifier is None:
+            return {**self.get_rules(), "error": f"'{value}' 항목은 이미 다른 분류 규칙에 있습니다."}
+        self.tracker.classifier = classifier
         return self.get_rules()

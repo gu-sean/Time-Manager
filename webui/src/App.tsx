@@ -236,6 +236,8 @@ function App() {
               onAdd={rulesHandlers.handleAddRule}
               onUpdate={rulesHandlers.handleUpdateRule}
               onDelete={rulesHandlers.handleDeleteRule}
+              onGetSuggestions={rulesHandlers.handleGetRuleSuggestions}
+              onApplySuggestion={rulesHandlers.handleApplyRuleSuggestion}
             />
           )}
           {activePage === 'report' && report && (
