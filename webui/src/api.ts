@@ -50,11 +50,11 @@ let mockDashboard: DashboardData = {
   viewingToday: true,
   tracking: true,
   stats: [
-    { key: 'total', label: '총 사용 시간', value: '6h 15m', delta: '▲ 1h 20m (어제 대비)', badge: { bg: '#EAF1EC', fg: '#6F9A7C', glyph: '⏱' } },
-    { key: 'productive', label: '생산적 시간', value: '4h 20m', delta: '▲ 1h 10m (어제 대비)', badge: { bg: '#EAF1EC', fg: '#6F9A7C', glyph: '▲' } },
-    { key: 'unproductive', label: '비생산적 시간', value: '1h 15m', delta: '▼ 20m (어제 대비)', badge: { bg: '#F8EDE3', fg: '#CB8056', glyph: '▽' } },
-    { key: 'neutral', label: '중립 시간', value: '40m', delta: '▲ 10m (어제 대비)', badge: { bg: '#EBF0F4', fg: '#7E97AC', glyph: '●' } },
-    { key: 'score', label: '생산성 점수', value: '82%', delta: '▲ 8점 (어제 대비)', badge: { bg: '#F6EFDD', fg: '#C19A45', glyph: '★' } },
+    { key: 'total', label: '총 사용 시간', value: '6h 15m', delta: '▲ 1h 20m (어제 대비)' },
+    { key: 'productive', label: '생산적 시간', value: '4h 20m', delta: '▲ 1h 10m (어제 대비)' },
+    { key: 'unproductive', label: '비생산적 시간', value: '1h 15m', delta: '▼ 20m (어제 대비)' },
+    { key: 'neutral', label: '중립 시간', value: '40m', delta: '▲ 10m (어제 대비)' },
+    { key: 'score', label: '생산성 점수', value: '82%', delta: '▲ 8점 (어제 대비)' },
   ],
   donut: {
     total: '6h 15m',
@@ -77,7 +77,6 @@ let mockDashboard: DashboardData = {
     { rank: 4, label: 'YouTube', time: '45m', category: 'unproductive', ratio: 0.33 },
     { rank: 5, label: 'Discord', time: '20m', category: 'unproductive', ratio: 0.15 },
   ],
-  focusMode: { enabled: true, streakLabel: '12m', ratio: 0.4, thresholdMinutes: 30 },
   focusSummary: { count: 2, totalTime: '1시간 40분' },
   currentActivity: { label: 'App.tsx - time-manager - Visual Studio Code', category: 'productive', categoryLabel: '생산적', color: '#7FA98A' },
 };
@@ -105,7 +104,6 @@ export async function getDashboard(dateIso?: string): Promise<DashboardData> {
 export async function toggleNotifications(enabled: boolean): Promise<DashboardData> {
   if (hasPywebview()) return window.pywebview!.api.toggle_notifications(enabled);
   mockSettings = { ...mockSettings, notificationsEnabled: enabled };
-  mockDashboard = { ...mockDashboard, focusMode: { ...mockDashboard.focusMode, enabled } };
   return mockDashboard;
 }
 
@@ -304,12 +302,6 @@ const MOCK_REPORT: ReportData = {
   ],
   insightMain: '평균 생산 점수는 76%입니다. 가장 약한 날이 5/18(52%)이고, 비생산 피크는 21시입니다.',
   insightSub: '이번 주는 금요일 오후에 생산성이 가장 높았어요.',
-  hourly: Array.from({ length: 24 }, (_, hour) => ({
-    hour,
-    productive: hour >= 8 && hour <= 19 ? 600 : 0,
-    unproductive: hour >= 8 && hour <= 19 ? 120 : 0,
-    neutral: hour >= 8 && hour <= 19 ? 80 : 0,
-  })),
   trend: [62, 70, 66, 78, 74, 82, 80, 88, 84, 90, 86, 82].map((score, i) => ({ day: String(i + 1), score })),
   heatmap: ['월', '화', '수', '목', '금', '토', '일'].map((day, di) => ({
     day,

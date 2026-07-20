@@ -1,15 +1,8 @@
-export interface StatBadge {
-  bg: string;
-  fg: string;
-  glyph: string;
-}
-
 export interface StatCard {
   key: string;
   label: string;
   value: string;
   delta: string;
-  badge: StatBadge;
 }
 
 export interface DonutSegment {
@@ -36,13 +29,6 @@ export interface TopAppRow {
   ratio: number;
 }
 
-export interface FocusMode {
-  enabled: boolean;
-  streakLabel: string;
-  ratio: number;
-  thresholdMinutes: number;
-}
-
 export interface FocusSummary {
   count: number;
   totalTime: string | null;
@@ -63,7 +49,6 @@ export interface DashboardData {
   donut: { total: string; segments: DonutSegment[] };
   hourly: HourlyRow[];
   topApps: TopAppRow[];
-  focusMode: FocusMode;
   focusSummary: FocusSummary;
   currentActivity: CurrentActivity | null;
 }
@@ -185,7 +170,6 @@ export interface ReportData {
   weekdayBars: WeekdayBar[];
   insightMain: string;
   insightSub: string;
-  hourly: HourlyRow[];
   trend: TrendPoint[];
   heatmap: HeatmapRow[];
   daily: DailyRow[];

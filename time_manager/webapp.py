@@ -36,7 +36,7 @@ def run_webview(
         url=index_path.as_uri(),
         js_api=api,
         width=1040,
-        height=740,
+        height=690,
         resizable=True,
         background_color="#F6F5F0",
     )

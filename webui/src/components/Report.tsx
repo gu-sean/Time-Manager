@@ -3,11 +3,13 @@ import type { ReportData } from '../types';
 
 const DAILY_PAGE_SIZE = 10;
 
-const CATEGORY_COLORS: Record<string, string> = {
-  productive: '#7FA98A',
-  unproductive: '#DB9163',
-  neutral: '#99ABBE',
-};
+function formatHm(seconds: number): string {
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}분`;
+  return minutes === 0 ? `${hours}시간` : `${hours}시간 ${minutes}분`;
+}
 
 function ScoreRing({ pct }: { pct: number }) {
   return (
@@ -24,26 +26,6 @@ function ScoreRing({ pct }: { pct: number }) {
         <span className="tm-score-ring-value">{pct}</span>
         <span className="tm-score-ring-suffix">/ 100점</span>
       </div>
-    </div>
-  );
-}
-
-function HourlyMiniChart({ hourly }: { hourly: ReportData['hourly'] }) {
-  const peak = Math.max(1, ...hourly.map((h) => h.productive + h.unproductive + h.neutral));
-  return (
-    <div className="tm-hourly-chart" style={{ height: 110 }}>
-      {hourly.map((h) => {
-        const p = (h.productive / peak) * 100;
-        const u = (h.unproductive / peak) * 100;
-        const n = (h.neutral / peak) * 100;
-        return (
-          <div className="tm-hourly-bar" key={h.hour}>
-            <div style={{ height: `${n}%`, background: CATEGORY_COLORS.neutral, borderRadius: '3px 3px 0 0' }} />
-            <div style={{ height: `${u}%`, background: CATEGORY_COLORS.unproductive }} />
-            <div style={{ height: `${p}%`, background: CATEGORY_COLORS.productive, borderRadius: '0 0 3px 3px' }} />
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -161,8 +143,15 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
           <div className="tm-card-title" style={{ marginBottom: 10 }}>
             이번 기간 요약
           </div>
-          <div style={{ fontSize: 11.5, color: '#4A453C', lineHeight: 1.6 }}>{data.weeklyProgressText}</div>
-          <div style={{ fontSize: 11.5, color: '#4A453C', lineHeight: 1.6, marginTop: 10 }}>{data.coachingText}</div>
+          <div className="tm-summary-stats">
+            {data.weeklyProgressText.split(' · ').map((part, i) => (
+              <div className="tm-summary-stat-row" key={i}>
+                <span className="tm-summary-stat-dot" />
+                <span>{part}</span>
+              </div>
+            ))}
+          </div>
+          <div className="tm-coaching-note">{data.coachingText}</div>
         </div>
 
         <div className="tm-card">
@@ -172,24 +161,19 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
           <div className="tm-weekday-chart">
             {data.weekdayBars.map((bar) => (
               <div className="tm-weekday-col" key={bar.day}>
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: '#B6AFA2' }}>{bar.pct}</span>
-                <div
-                  className="tm-weekday-bar"
-                  style={{ height: `${Math.max(2, bar.pct * 0.66)}px`, background: bar.isWeekend ? '#C9C1B2' : '#BA6A49' }}
-                />
-                <span style={{ fontSize: 10, fontWeight: 600, color: '#8A8377' }}>{bar.day}</span>
+                <span className="tm-weekday-time">{formatHm(bar.seconds)}</span>
+                <div className="tm-weekday-bar-track">
+                  <div
+                    className="tm-weekday-bar"
+                    style={{ height: `${Math.max(2, bar.pct * 0.66)}px`, background: bar.isWeekend ? '#C9C1B2' : '#BA6A49' }}
+                  />
+                </div>
+                <span className="tm-weekday-label">{bar.day}</span>
               </div>
             ))}
           </div>
           <div style={{ fontSize: 11, color: '#8A8377', marginTop: 8 }}>{data.weekdayText}</div>
         </div>
-      </div>
-
-      <div className="tm-card">
-        <div className="tm-card-title" style={{ marginBottom: 8 }}>
-          시간대별 활동
-        </div>
-        <HourlyMiniChart hourly={data.hourly} />
       </div>
 
       <div className="tm-report-2col-a">

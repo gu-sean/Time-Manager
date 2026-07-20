@@ -54,8 +54,24 @@ function HourlyChart({ hourly }: { hourly: DashboardData['hourly'] }) {
           const pPct = (h.productive / peak) * 100;
           const uPct = (h.unproductive / peak) * 100;
           const nPct = (h.neutral / peak) * 100;
+          const pctOfHour = (v: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
           return (
-            <div className="tm-hourly-bar" key={h.hour} title={`${h.hour}시 · ${total}s`}>
+            <div className="tm-hourly-bar" key={h.hour}>
+              <div className="tm-hourly-tooltip">
+                <div className="tm-hourly-tooltip-hour">{h.hour}시</div>
+                <div className="tm-hourly-tooltip-row">
+                  <span className="tm-hourly-tooltip-dot" style={{ background: CATEGORY_COLORS.productive }} />
+                  생산적 <strong>{pctOfHour(h.productive)}%</strong>
+                </div>
+                <div className="tm-hourly-tooltip-row">
+                  <span className="tm-hourly-tooltip-dot" style={{ background: CATEGORY_COLORS.unproductive }} />
+                  비생산적 <strong>{pctOfHour(h.unproductive)}%</strong>
+                </div>
+                <div className="tm-hourly-tooltip-row">
+                  <span className="tm-hourly-tooltip-dot" style={{ background: CATEGORY_COLORS.neutral }} />
+                  중립 <strong>{pctOfHour(h.neutral)}%</strong>
+                </div>
+              </div>
               <div style={{ height: `${nPct}%`, background: CATEGORY_COLORS.neutral, borderRadius: '3px 3px 0 0' }} />
               <div style={{ height: `${uPct}%`, background: CATEGORY_COLORS.unproductive }} />
               <div style={{ height: `${pPct}%`, background: CATEGORY_COLORS.productive, borderRadius: '0 0 3px 3px' }} />
@@ -64,13 +80,12 @@ function HourlyChart({ hourly }: { hourly: DashboardData['hourly'] }) {
         })}
       </div>
       <div className="tm-hourly-axis">
-        <span>00:00</span>
-        <span>04:00</span>
-        <span>08:00</span>
-        <span>12:00</span>
-        <span>16:00</span>
-        <span>20:00</span>
-        <span>24:00</span>
+        {[0, 4, 8, 12, 16, 20].map((hour) => (
+          <span key={hour} style={{ gridColumnStart: hour + 1, justifySelf: 'start' }}>
+            {String(hour).padStart(2, '0')}:00
+          </span>
+        ))}
+        <span style={{ gridColumnStart: 24, justifySelf: 'end' }}>24:00</span>
       </div>
     </>
   );
@@ -122,10 +137,9 @@ function TopApps({ rows }: { rows: DashboardData['topApps'] }) {
 
 interface DashboardProps {
   data: DashboardData;
-  onToggleFocus: (enabled: boolean) => void;
 }
 
-export default function Dashboard({ data, onToggleFocus }: DashboardProps) {
+export default function Dashboard({ data }: DashboardProps) {
   return (
     <div className="tm-page">
       <div className="tm-stats-row">
@@ -133,12 +147,7 @@ export default function Dashboard({ data, onToggleFocus }: DashboardProps) {
           const deltaColor = stat.key === 'unproductive' ? '#C8795A' : '#6F9A7C';
           return (
             <div className="tm-stat-card" key={stat.key}>
-              <div className="tm-stat-head">
-                <span className="tm-stat-label">{stat.label}</span>
-                <div className="tm-stat-badge" style={{ background: stat.badge.bg, color: stat.badge.fg }}>
-                  {stat.badge.glyph}
-                </div>
-              </div>
+              <span className="tm-stat-label">{stat.label}</span>
               <div className="tm-stat-value">{stat.value}</div>
               <div className="tm-stat-delta" style={{ color: deltaColor }}>
                 {stat.delta}
@@ -189,40 +198,13 @@ export default function Dashboard({ data, onToggleFocus }: DashboardProps) {
         </div>
       </div>
 
-      <div className="tm-card">
-        <div className="tm-card-title">상위 앱/사이트</div>
-        <TopApps rows={data.topApps} />
-      </div>
-
-      <div className="tm-focus-row">
-        <FocusTimer summary={data.focusSummary} />
-
-        <div className="tm-card tm-focus-card">
-          <div className="tm-focus-head">
-            <div className="tm-card-title">집중 알림</div>
-            <button
-              className={`tm-toggle-track ${data.focusMode.enabled ? 'on' : 'off'}`}
-              type="button"
-              onClick={() => onToggleFocus(!data.focusMode.enabled)}
-              aria-label="집중 알림 토글"
-            >
-              <span className="tm-toggle-knob" />
-            </button>
-          </div>
-          <div className="tm-focus-desc">
-            비생산 활동이 {data.focusMode.thresholdMinutes}분 연속되면 알림을 보내드려요.
-          </div>
-          <div className="tm-focus-status">
-            <div className="tm-focus-streak-label">현재 연속 비생산 시간</div>
-            <div className="tm-focus-streak-value">{data.focusMode.streakLabel}</div>
-          </div>
-          <div className="tm-focus-bar-row">
-            <div className="tm-focus-bar-track">
-              <div className="tm-focus-bar-fill" style={{ width: `${data.focusMode.ratio * 100}%` }} />
-            </div>
-            <span className="tm-focus-bar-label">{data.focusMode.thresholdMinutes}분</span>
-          </div>
+      <div className="tm-bottom-row">
+        <div className="tm-card">
+          <div className="tm-card-title">상위 앱/사이트</div>
+          <TopApps rows={data.topApps} />
         </div>
+
+        <FocusTimer summary={data.focusSummary} />
       </div>
     </div>
   );

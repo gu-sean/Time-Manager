@@ -75,7 +75,7 @@ function App() {
   }, []);
 
   const theme = settings?.theme ?? 'light';
-  const notificationsEnabled = settings?.notificationsEnabled ?? dashboard?.focusMode.enabled ?? true;
+  const notificationsEnabled = settings?.notificationsEnabled ?? true;
 
   useEffect(() => {
     let cancelled = false;
@@ -143,12 +143,6 @@ function App() {
   const handleToday = useCallback(async () => {
     await navigateDay(localDateIso());
   }, [navigateDay]);
-
-  const handleToggleFocus = useCallback(async (enabled: boolean) => {
-    setDashboard(await toggleNotifications(enabled));
-    setSettings(await getSettings());
-    setToast(enabled ? '목표·집중 알림을 켰습니다.' : '목표·집중 알림을 껐습니다.');
-  }, []);
 
   const handleHeaderToggleNotifications = useCallback(async () => {
     const nextEnabled = !notificationsEnabled;
@@ -218,7 +212,7 @@ function App() {
         />
         <div className="tm-scroll">
           {activePage === 'dashboard' && dashboard && (
-            <Dashboard data={dashboard} onToggleFocus={handleToggleFocus} />
+            <Dashboard data={dashboard} />
           )}
           {activePage === 'inbox' && inbox && (
             <Inbox

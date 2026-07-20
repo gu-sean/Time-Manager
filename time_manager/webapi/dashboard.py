@@ -6,7 +6,7 @@ from typing import Any
 from time_manager.formatting import _format_seconds, _truncate
 from time_manager.models import Category
 
-from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _STAT_BADGES, _day_totals, _delta_text, _productivity_score
+from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals, _delta_text, _productivity_score
 
 
 class DashboardMixin(WebApiBase):
@@ -52,7 +52,6 @@ class DashboardMixin(WebApiBase):
                 "label": "총 사용 시간",
                 "value": _format_seconds(total_seconds),
                 "delta": _delta_text(total_seconds - yesterday_total),
-                "badge": _STAT_BADGES["total"],
             }
         ]
         for category in (Category.PRODUCTIVE, Category.UNPRODUCTIVE, Category.NEUTRAL):
@@ -62,7 +61,6 @@ class DashboardMixin(WebApiBase):
                     "label": f"{_CATEGORY_LABELS[category]} 시간",
                     "value": _format_seconds(totals[category]),
                     "delta": _delta_text(totals[category] - yesterday_totals[category]),
-                    "badge": _STAT_BADGES[category],
                 }
             )
         stats.append(
@@ -71,7 +69,6 @@ class DashboardMixin(WebApiBase):
                 "label": "생산성 점수",
                 "value": f"{score}%",
                 "delta": _delta_text(score - yesterday_score, unit="점"),
-                "badge": _STAT_BADGES["score"],
             }
         )
 
@@ -124,16 +121,6 @@ class DashboardMixin(WebApiBase):
             "totalTime": _format_seconds(total_focus) if total_focus > 0 else None,
         }
 
-        category, streak_seconds = self.tracker.current_streak()
-        threshold = self.tracker.unproductive_alert_seconds
-        on_streak = category == Category.UNPRODUCTIVE and streak_seconds > 0
-        focus_mode = {
-            "enabled": self.settings.notifications_enabled,
-            "streakLabel": _format_seconds(streak_seconds if on_streak else 0),
-            "ratio": min(1.0, streak_seconds / threshold) if on_streak else 0.0,
-            "thresholdMinutes": threshold // 60,
-        }
-
         return {
             "dateLabel": "오늘" if viewing_today else selected_day.strftime("%Y년 %m월 %d일"),
             "viewingToday": viewing_today,
@@ -142,7 +129,6 @@ class DashboardMixin(WebApiBase):
             "donut": {"total": _format_seconds(total_seconds), "segments": donut_segments},
             "hourly": hourly,
             "topApps": top_apps,
-            "focusMode": focus_mode,
             "focusSummary": focus_summary,
             "currentActivity": current_activity,
         }

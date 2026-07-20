@@ -35,14 +35,6 @@ CATEGORY_COLORS = {
     Category.NEUTRAL: "#99ABBE",
 }
 
-_STAT_BADGES = {
-    "total": {"bg": "#EAF1EC", "fg": "#6F9A7C", "glyph": "⏱"},
-    Category.PRODUCTIVE: {"bg": "#EAF1EC", "fg": "#6F9A7C", "glyph": "▲"},
-    Category.UNPRODUCTIVE: {"bg": "#F8EDE3", "fg": "#CB8056", "glyph": "▽"},
-    Category.NEUTRAL: {"bg": "#EBF0F4", "fg": "#7E97AC", "glyph": "●"},
-    "score": {"bg": "#F6EFDD", "fg": "#C19A45", "glyph": "★"},
-}
-
 
 def _day_totals(store: ActivityStore, day: date) -> dict[Category, int]:
     totals = {category: 0 for category in Category}

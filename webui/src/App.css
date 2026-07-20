@@ -425,6 +425,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding-bottom: 14px;
 }
 
 /* ---- dashboard cards ---- */
@@ -452,28 +453,16 @@
   border: 1px solid #eae6dd;
   border-radius: 15px;
   padding: 14px 15px;
-}
-
-.tm-stat-head {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  text-align: center;
 }
 
 .tm-stat-label {
   font-size: 11.5px;
   font-weight: 600;
   color: #968f82;
-}
-
-.tm-stat-badge {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
 }
 
 .tm-stat-value {
@@ -541,7 +530,8 @@
 }
 
 .tm-legend-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 9px 62px 36px auto;
   align-items: center;
   gap: 8px;
 }
@@ -559,7 +549,6 @@
 }
 
 .tm-legend-pct {
-  margin-left: auto;
   font-size: 12px;
   font-weight: 800;
   color: #2f2b25;
@@ -597,16 +586,17 @@
 }
 
 .tm-hourly-chart {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  column-gap: 3px;
   align-items: flex-end;
-  gap: 3px;
   height: 128px;
   margin-top: 14px;
   padding-left: 4px;
 }
 
 .tm-hourly-bar {
-  flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -614,10 +604,52 @@
   height: 100%;
 }
 
-.tm-hourly-axis {
+.tm-hourly-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #2f2b25;
+  color: #f6f5f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: nowrap;
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.tm-hourly-bar:hover .tm-hourly-tooltip {
+  display: block;
+}
+
+.tm-hourly-tooltip-hour {
+  font-weight: 800;
+  margin-bottom: 3px;
+}
+
+.tm-hourly-tooltip-row {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 5px;
+}
+
+.tm-hourly-tooltip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.tm-hourly-axis {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  column-gap: 3px;
   margin-top: 7px;
+  padding-left: 4px;
   font-size: 9.5px;
   font-weight: 600;
   color: #b6afa2;
@@ -627,13 +659,6 @@
   display: grid;
   grid-template-columns: minmax(300px, 1.15fr) minmax(280px, 0.85fr);
   gap: 14px;
-}
-
-.tm-focus-row {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.85fr) minmax(300px, 1.15fr);
-  gap: 14px;
-  align-items: stretch;
 }
 
 /* ---- focus timer (pomodoro) ---- */
@@ -799,90 +824,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-
-.tm-focus-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  align-content: space-between;
-  column-gap: 16px;
-  row-gap: 10px;
-  min-width: 280px;
-  word-break: keep-all;
-}
-
-.tm-focus-head {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.tm-focus-head .tm-card-title {
-  white-space: nowrap;
-}
-
-.tm-focus-desc {
-  font-size: 11px;
-  font-weight: 500;
-  color: #8a8377;
-  line-height: 1.5;
-  min-width: 0;
-  overflow-wrap: normal;
-}
-
-.tm-focus-status {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 96px;
-  text-align: right;
-}
-
-.tm-focus-streak-label {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #a79f92;
-  white-space: nowrap;
-}
-
-.tm-focus-streak-value {
-  font-size: 20px;
-  font-weight: 800;
-  color: #c8795a;
-  letter-spacing: -0.02em;
-  margin-top: 4px;
-  white-space: nowrap;
-}
-
-.tm-focus-bar-row {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.tm-focus-bar-track {
-  flex: 1;
-  height: 6px;
-  border-radius: 99px;
-  background: #f0eae2;
-  overflow: hidden;
-}
-
-.tm-focus-bar-fill {
-  height: 100%;
-  border-radius: 99px;
-  background: linear-gradient(90deg, #e0986e, #cb8056);
-}
-
-.tm-focus-bar-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #b6afa2;
-  white-space: nowrap;
-}
 
 /* ---- inbox ---- */
 .tm-inbox-card-head {
@@ -1445,23 +1386,73 @@
   color: #a79f92;
 }
 
-.tm-weekday-chart {
+.tm-summary-stats {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 8px;
-  height: 86px;
+}
+
+.tm-summary-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b362e;
+}
+
+.tm-summary-stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ba6a49;
+  flex-shrink: 0;
+}
+
+.tm-coaching-note {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #f4ece4;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6e6759;
+}
+
+.tm-weekday-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px;
   padding-top: 8px;
 }
 
 .tm-weekday-col {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  height: 100%;
-  justify-content: flex-end;
+}
+
+.tm-weekday-time {
+  font-size: 9px;
+  font-weight: 700;
+  color: #b6afa2;
+  white-space: nowrap;
+}
+
+.tm-weekday-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8a8377;
+}
+
+.tm-weekday-bar-track {
+  width: 100%;
+  height: 66px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
 .tm-weekday-bar {
@@ -1785,6 +1776,7 @@
 .tm-shell.dark .tm-legend-label,
 .tm-shell.dark .tm-flow-legend-item,
 .tm-shell.dark .tm-top-app-time,
+.tm-shell.dark .tm-summary-stat-row,
 .tm-shell.dark .tm-date-pill-label,
 .tm-shell.dark .tm-date-pill-btn,
 .tm-shell.dark .tm-ghost-btn,
@@ -1810,7 +1802,6 @@
 .tm-shell.dark .tm-rule-row,
 .tm-shell.dark .tm-top-app-icon,
 .tm-shell.dark .tm-top-app-bar-track,
-.tm-shell.dark .tm-focus-bar-track,
 .tm-shell.dark .tm-focus-mix-bar,
 .tm-shell.dark .tm-period-chip,
 .tm-shell.dark .tm-review-stat,
@@ -1887,6 +1878,11 @@
   color: #a8d4b4;
 }
 
+.tm-shell.dark .tm-coaching-note {
+  background: rgba(186, 106, 73, 0.16);
+  color: #e0b49f;
+}
+
 .tm-shell.dark .tm-focus-mix-row {
   color: #aaa394;
 }
@@ -1928,7 +1924,6 @@
 
   .tm-flow-row,
   .tm-bottom-row,
-  .tm-focus-row,
   .tm-settings-2col,
   .tm-report-top,
   .tm-report-2col,

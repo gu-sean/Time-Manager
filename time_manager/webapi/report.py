@@ -93,11 +93,6 @@ class ReportMixin(WebApiBase):
             for row in weekdays
         ]
 
-        hourly = [
-            {"hour": row.hour, "productive": row.productive_seconds, "unproductive": row.unproductive_seconds, "neutral": row.neutral_seconds}
-            for row in hourly_rows
-        ]
-
         trend = [{"day": row.day[5:], "score": row.productivity_score} for row in rows if row.total_seconds > 0]
 
         heat_grid = self.store.weekday_hour_totals_between(start_day, end_day)
@@ -147,7 +142,6 @@ class ReportMixin(WebApiBase):
             "weekdayBars": weekday_bars,
             "insightMain": insight_main,
             "insightSub": insight_sub,
-            "hourly": hourly,
             "trend": trend,
             "heatmap": heatmap,
             "daily": daily,
