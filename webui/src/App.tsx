@@ -260,6 +260,7 @@ function App() {
               onApplyPreset={settingsHandlers.handleApplyPreset}
               onRunDiagnostics={settingsHandlers.handleRunDiagnostics}
               onCheckUpdate={settingsHandlers.handleCheckUpdate}
+              onInstallUpdate={settingsHandlers.handleInstallUpdate}
               onExportLogs={settingsHandlers.handleExportLogs}
               onExportCsv={settingsHandlers.handleExportCsv}
               onExportCsvPeriod={settingsHandlers.handleExportCsvPeriod}

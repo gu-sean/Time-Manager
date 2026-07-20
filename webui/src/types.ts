@@ -192,6 +192,12 @@ export interface UpdateInfo {
   latest: string;
   current: string;
   url: string;
+  assetUrl: string;
+  error: string;
+}
+
+export interface InstallUpdateResult {
+  started: boolean;
   error: string;
 }
 

@@ -9,6 +9,7 @@ import {
   exportLogs,
   getDashboard,
   getSettings,
+  installUpdate,
   restoreBackup,
   runDiagnostics,
   saveSettings,
@@ -19,7 +20,7 @@ import {
   toggleNotifications,
   toggleStartup,
 } from '../api';
-import type { DashboardData, InboxData, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
+import type { DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
 
 interface Setters {
   setSettings: (data: SettingsData) => void;
@@ -93,6 +94,10 @@ export function useSettingsHandlers({
     return checkUpdate();
   }, []);
 
+  const handleInstallUpdate = useCallback(async (assetUrl: string): Promise<InstallUpdateResult> => {
+    return installUpdate(assetUrl);
+  }, []);
+
   const handleExportLogs = useCallback(async () => {
     const result = await exportLogs();
     if (result.message) setToast(result.message);
@@ -137,6 +142,7 @@ export function useSettingsHandlers({
     handleApplyPreset,
     handleRunDiagnostics,
     handleCheckUpdate,
+    handleInstallUpdate,
     handleExportLogs,
     handleExportCsv,
     handleExportCsvPeriod,

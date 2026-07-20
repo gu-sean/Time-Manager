@@ -1,4 +1,4 @@
-import type { CurrentActivity, DashboardData, InboxData, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from './types';
+import type { CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, UpdateInfo } from './types';
 
 declare global {
   interface Window {
@@ -36,6 +36,7 @@ declare global {
         export_backup(): Promise<{ message: string }>;
         restore_backup(): Promise<{ message: string } & Partial<SettingsData>>;
         check_update(): Promise<UpdateInfo>;
+        install_update(assetUrl: string): Promise<InstallUpdateResult>;
         export_logs(): Promise<{ message: string }>;
       };
     };
@@ -423,7 +424,12 @@ export async function restoreBackup(): Promise<{ message: string } & Partial<Set
 
 export async function checkUpdate(): Promise<UpdateInfo> {
   if (hasPywebview()) return window.pywebview!.api.check_update();
-  return { hasUpdate: false, latest: '', current: '', url: '', error: '' };
+  return { hasUpdate: false, latest: '', current: '', url: '', assetUrl: '', error: '' };
+}
+
+export async function installUpdate(assetUrl: string): Promise<InstallUpdateResult> {
+  if (hasPywebview()) return window.pywebview!.api.install_update(assetUrl);
+  return { started: false, error: '' };
 }
 
 export async function exportLogs(): Promise<{ message: string }> {

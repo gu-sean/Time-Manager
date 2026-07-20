@@ -179,6 +179,17 @@ class SettingsMixin(WebApiBase):
         from time_manager.updater import check_for_update
         return check_for_update()
 
+    def install_update(self, asset_url: str) -> dict[str, Any]:
+        from time_manager.updater import download_and_launch_installer
+
+        result = download_and_launch_installer(asset_url)
+        if result["started"]:
+            import webview
+
+            if webview.windows:
+                webview.windows[0].destroy()
+        return result
+
     def run_diagnostics(self) -> dict[str, Any]:
         settings_path = self.settings_store.path if self.settings_store else self.store.db_path.parent / "settings.json"
         results = _run_diagnostics(
