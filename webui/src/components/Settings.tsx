@@ -251,7 +251,7 @@ export default function Settings({
                 로그 내보내기
               </button>
               <a
-                href="https://docs.google.com/forms/d/e/1FAIpQLSfK9N_zYOdQmuJWZQehMD4f20VADEFw_fSLBUUMCdCW6J0o4g/viewform?usp=publish-editor"
+                href="https://docs.google.com/forms/d/e/1FAIpQLSc3P-8LfIng9NUMfu3rNOsP4t22LYyjAURxBZjGadKLY1QMgQ/viewform?usp=publish-editor"
                 target="_blank"
                 rel="noreferrer"
                 className="tm-btn-small tm-btn-primary"
