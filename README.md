@@ -44,6 +44,23 @@ Windows용 데스크탑 시간 추적 앱입니다.
 
 ---
 
+## 스크린샷
+
+<table>
+<tr>
+<td><img src="docs/screenshots/dashboard.png" width="320" alt="대시보드"/></td>
+<td><img src="docs/screenshots/report.png" width="320" alt="리포트"/></td>
+<td><img src="docs/screenshots/rules.png" width="320" alt="규칙 · 분류 제안"/></td>
+</tr>
+<tr>
+<td align="center">대시보드</td>
+<td align="center">리포트</td>
+<td align="center">규칙 · 분류 제안</td>
+</tr>
+</table>
+
+---
+
 ## 기술 스택
 
 | 영역 | 기술 |
