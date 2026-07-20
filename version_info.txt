@@ -1,10 +1,10 @@
 # UTF-8
 # PyInstaller version resource for TimeManager.exe.
-# Keep the version numbers in sync with time_manager/__version__ (1.0.1).
+# Keep the version numbers in sync with time_manager/__version__ (1.1.0).
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 1, 0),
-    prodvers=(1, 0, 1, 0),
+    filevers=(1, 1, 0, 0),
+    prodvers=(1, 1, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -20,11 +20,11 @@ VSVersionInfo(
           [
             StringStruct("CompanyName", "Time Manager"),
             StringStruct("FileDescription", "Time Manager — desktop time tracker"),
-            StringStruct("FileVersion", "1.0.1.0"),
+            StringStruct("FileVersion", "1.1.0.0"),
             StringStruct("InternalName", "TimeManager"),
             StringStruct("OriginalFilename", "TimeManager.exe"),
             StringStruct("ProductName", "Time Manager"),
-            StringStruct("ProductVersion", "1.0.1.0"),
+            StringStruct("ProductVersion", "1.1.0.0"),
           ],
         )
       ]
