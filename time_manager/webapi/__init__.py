@@ -13,11 +13,14 @@ from .report import ReportMixin
 from .review import ReviewMixin
 from .rules import RulesMixin
 from .settings import SettingsMixin
+from .weekly_summary import WeeklySummaryMixin
 
 __all__ = ["WebApi"]
 
 
-class WebApi(DashboardMixin, InboxMixin, ReviewMixin, RulesMixin, ReportMixin, SettingsMixin, BackupMixin):
+class WebApi(
+    DashboardMixin, InboxMixin, ReviewMixin, RulesMixin, ReportMixin, SettingsMixin, BackupMixin, WeeklySummaryMixin
+):
     def __init__(
         self,
         *,
@@ -33,5 +36,9 @@ class WebApi(DashboardMixin, InboxMixin, ReviewMixin, RulesMixin, ReportMixin, S
         self.rules_path = rules_path
         try:
             self._maybe_auto_backup()
+        except Exception:
+            pass
+        try:
+            self._maybe_weekly_summary_notify()
         except Exception:
             pass

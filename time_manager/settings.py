@@ -18,6 +18,7 @@ class AppSettings:
     notifications_enabled: bool = True
     auto_backup_enabled: bool = True
     last_auto_backup: str = ""
+    last_weekly_summary_notified: str = ""
     theme: str = "light"
 
 
@@ -46,6 +47,7 @@ class SettingsStore:
             notifications_enabled=bool(data.get("notifications_enabled", True)),
             auto_backup_enabled=bool(data.get("auto_backup_enabled", True)),
             last_auto_backup=str(data.get("last_auto_backup", "")),
+            last_weekly_summary_notified=str(data.get("last_weekly_summary_notified", "")),
             theme=_coerce_theme(data.get("theme", "light")),
         )
 
