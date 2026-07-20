@@ -50,10 +50,12 @@ class ActivityTracker:
     _idle_status_sent: bool = field(default=False, init=False)
     _last_monitor_status: str = field(default="", init=False)
     _end_of_day_notified_date: str = field(default="", init=False)
+    _work_end_armed: bool = field(default=False, init=False)
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
+        self._arm_end_of_day_notify()
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run, name="activity-tracker", daemon=True)
         self._thread.start()
@@ -172,7 +174,15 @@ class ActivityTracker:
             )
             self._streak_alert_sent = True
 
+    def _arm_end_of_day_notify(self) -> None:
+        # Only allow the end-of-day notification to fire if we were actually running
+        # before work_end_hour and later cross it — not simply because the app happens
+        # to be launched after that hour has already passed.
+        self._work_end_armed = _time.localtime().tm_hour < self.work_end_hour
+
     def _maybe_end_of_day_notify(self) -> None:
+        if not self._work_end_armed:
+            return
         today = date.today().isoformat()
         if self._end_of_day_notified_date == today:
             return
@@ -190,6 +200,7 @@ class ActivityTracker:
 
     def reset_end_of_day_state(self) -> None:
         self._end_of_day_notified_date = ""
+        self._arm_end_of_day_notify()
 
     def _reset_streak(self) -> None:
         self._streak_category = None
