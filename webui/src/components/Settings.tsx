@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SettingsData, UpdateInfo } from '../types';
+import type { InstallUpdateResult, SettingsData, UpdateInfo } from '../types';
 import Toggle from './Toggle';
 
 const PRESET_EMOJI: Record<string, string> = {
@@ -32,6 +32,7 @@ interface SettingsProps {
   onExportBackup: () => void;
   onRestoreBackup: () => void;
   onCheckUpdate: () => Promise<UpdateInfo>;
+  onInstallUpdate: (assetUrl: string) => Promise<InstallUpdateResult>;
   onExportLogs: () => void;
 }
 
@@ -51,18 +52,35 @@ export default function Settings({
   onExportBackup,
   onRestoreBackup,
   onCheckUpdate,
+  onInstallUpdate,
   onExportLogs,
 }: SettingsProps) {
   const [csvPeriod, setCsvPeriod] = useState(PERIOD_OPTIONS[0]);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [installError, setInstallError] = useState('');
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
     setUpdateInfo(null);
+    setInstallError('');
     const result = await onCheckUpdate();
     setUpdateInfo(result);
     setCheckingUpdate(false);
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!updateInfo?.assetUrl) return;
+    setInstallingUpdate(true);
+    setInstallError('');
+    const result = await onInstallUpdate(updateInfo.assetUrl);
+    if (!result.started) {
+      setInstallError(result.error || '업데이트 설치를 시작하지 못했습니다.');
+      setInstallingUpdate(false);
+    }
+    // On success the app quits itself to hand off to the installer, so no
+    // further state update is needed here.
   };
   const [form, setForm] = useState({
     dailyGoalMinutes: data.dailyGoalMinutes,
@@ -211,14 +229,28 @@ export default function Settings({
               {updateInfo.error ? (
                 <span style={{ color: '#CB8056' }}>{updateInfo.error}</span>
               ) : updateInfo.hasUpdate ? (
-                <span style={{ color: '#6F9A7C', fontWeight: 700 }}>
-                  새 버전 v{updateInfo.latest} 출시 —{' '}
-                  <a href={updateInfo.url} target="_blank" rel="noreferrer" style={{ color: '#6F9A7C' }}>
-                    다운로드
-                  </a>
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ color: '#6F9A7C', fontWeight: 700 }}>새 버전 v{updateInfo.latest} 출시</span>
+                  {updateInfo.assetUrl ? (
+                    <button
+                      className="tm-btn-small tm-btn-primary"
+                      type="button"
+                      onClick={handleInstallUpdate}
+                      disabled={installingUpdate}
+                    >
+                      {installingUpdate ? '설치 준비 중…' : '지금 설치'}
+                    </button>
+                  ) : (
+                    <a href={updateInfo.url} target="_blank" rel="noreferrer" style={{ color: '#6F9A7C' }}>
+                      다운로드
+                    </a>
+                  )}
+                </div>
               ) : (
                 <span style={{ color: '#918B80' }}>최신 버전입니다 (v{updateInfo.current})</span>
+              )}
+              {installError && (
+                <div style={{ color: '#CB8056', marginTop: 6 }}>{installError}</div>
               )}
             </div>
           )}
