@@ -20,6 +20,7 @@ interface SidebarProps {
   tracking: boolean;
   onToggleTracking: () => void;
   dashboard: DashboardData | null;
+  appVersion?: string;
 }
 
 function formatElapsed(seconds: number): string {
@@ -29,7 +30,7 @@ function formatElapsed(seconds: number): string {
   return `${h}:${m}:${s}`;
 }
 
-export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTracking, dashboard }: SidebarProps) {
+export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTracking, dashboard, appVersion }: SidebarProps) {
   const [elapsed, setElapsed] = useState(0);
   const [activity, setActivity] = useState<CurrentActivity | null>(dashboard?.currentActivity ?? null);
   const wasTracking = useRef(tracking);
@@ -70,7 +71,7 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
         <div className="tm-brand-icon">◷</div>
         <div>
           <div className="tm-brand-name">시간관리</div>
-          <div className="tm-brand-version">v1.0.0</div>
+          <div className="tm-brand-version">v{appVersion ?? '…'}</div>
         </div>
       </div>
 

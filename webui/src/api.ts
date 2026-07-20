@@ -330,6 +330,7 @@ export async function getReportRange(startIso: string, endIso: string): Promise<
 }
 
 let mockSettings: SettingsData = {
+  appVersion: '1.1.0',
   dailyGoalMinutes: 180,
   weeklyGoalMinutes: 900,
   unproductiveLimitMinutes: 120,

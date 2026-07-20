@@ -202,6 +202,7 @@ export interface Option {
 }
 
 export interface SettingsData {
+  appVersion: string;
   dailyGoalMinutes: number;
   weeklyGoalMinutes: number;
   unproductiveLimitMinutes: number;

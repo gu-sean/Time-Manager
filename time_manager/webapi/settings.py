@@ -35,6 +35,7 @@ class SettingsMixin(WebApiBase):
             for value in values
         ]
         return {
+            "appVersion": __version__,
             "dailyGoalMinutes": self.settings.daily_goal_minutes,
             "startupEnabled": _startup_is_enabled(),
             "weeklyGoalMinutes": self.settings.weekly_goal_minutes,

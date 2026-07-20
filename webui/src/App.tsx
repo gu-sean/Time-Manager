@@ -195,6 +195,7 @@ function App() {
         tracking={dashboard?.tracking ?? true}
         dashboard={dashboard}
         onToggleTracking={handleToggleTracking}
+        appVersion={settings?.appVersion}
       />
       <main className="tm-main">
         <Header
