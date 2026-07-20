@@ -25,6 +25,16 @@ _log = logging.getLogger(__name__)
 _KEYRING_SERVICE = "TimeManager"
 _KEYRING_USER = "db-encryption-key"
 _ENC_SUFFIX = ".enc"
+_SQLITE_HEADER = b"SQLite format 3\x00"
+
+
+def _looks_like_sqlite(path: Path) -> bool:
+    """Check the SQLite file-header magic bytes without opening a DB connection."""
+    try:
+        with path.open("rb") as fh:
+            return fh.read(len(_SQLITE_HEADER)) == _SQLITE_HEADER
+    except OSError:
+        return False
 
 
 def _get_or_create_key() -> bytes:
@@ -65,9 +75,14 @@ def decrypt_if_needed(db_path: Path) -> bool:
     if not enc_path.exists():
         return False
     if db_path.exists():
-        # Plain file already present (possible crash before last encrypt); prefer it.
-        _log.info("Plain DB exists alongside %s — skipping decrypt", enc_path.name)
-        return False
+        if _looks_like_sqlite(db_path):
+            # Plain file already present (possible crash before last encrypt); prefer it.
+            _log.info("Plain DB exists alongside %s — skipping decrypt", enc_path.name)
+            return False
+        _log.warning(
+            "%s exists but is not a valid SQLite file (leftover from an interrupted "
+            "encrypt) — ignoring it and decrypting from %s instead", db_path.name, enc_path.name
+        )
     try:
         key = _get_or_create_key()
         plaintext = Fernet(key).decrypt(enc_path.read_bytes())
@@ -95,7 +110,8 @@ def encrypt_and_replace(db_path: Path) -> bool:
     enc_path = Path(str(db_path) + _ENC_SUFFIX)
     try:
         key = _get_or_create_key()
-        ciphertext = Fernet(key).encrypt(db_path.read_bytes())
+        original = db_path.read_bytes()
+        ciphertext = Fernet(key).encrypt(original)
         enc_path.write_bytes(ciphertext)
         # Remove WAL/SHM sidecars first (they reference the main file).
         for sidecar_suffix in ("-wal", "-shm"):
@@ -104,7 +120,7 @@ def encrypt_and_replace(db_path: Path) -> bool:
                 sidecar.unlink(missing_ok=True)
             except OSError:
                 pass
-        _zero_and_delete(db_path)
+        _zero_and_delete(db_path, original)
         _log.info("DB encrypted → %s", enc_path.name)
         return True
     except Exception as exc:
@@ -112,14 +128,29 @@ def encrypt_and_replace(db_path: Path) -> bool:
         return False
 
 
-def _zero_and_delete(path: Path) -> None:
-    """Overwrite with zeros then delete — basic protection against trivial file recovery."""
+def _zero_and_delete(path: Path, original: bytes) -> None:
+    """Overwrite with zeros then delete — basic protection against trivial file recovery.
+
+    ``enc_path`` already holds a valid encrypted copy of ``original`` by the time this
+    runs. If a concurrent process (AV scanner, indexer) holds a transient lock on
+    ``path`` and the final unlink fails after we've already zeroed it, restore
+    ``original`` instead of leaving a zeroed, unreadable file behind — the file is
+    still redundant with the .enc backup, so leaving it as plaintext this one time is
+    safer than corrupting it.
+    """
     try:
         size = path.stat().st_size
         with path.open("r+b") as fh:
             fh.write(b"\x00" * size)
             fh.flush()
             os.fsync(fh.fileno())
-    except OSError:
-        pass
-    path.unlink(missing_ok=True)
+        path.unlink()
+    except OSError as exc:
+        _log.warning(
+            "Could not securely delete plaintext DB (%s) — restoring it so it stays "
+            "a valid SQLite file until the next successful close", exc
+        )
+        try:
+            path.write_bytes(original)
+        except OSError:
+            pass
