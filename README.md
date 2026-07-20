@@ -67,51 +67,8 @@ time-manager/
 ├── requirements.txt
 ├── time_manager.spec          # PyInstaller 빌드 설정
 ├── version_info.txt           # exe 버전 메타데이터
-│
-├── time_manager/              # Python 패키지
-│   ├── app.py                 # 부트스트랩 + 라이프사이클 (decrypt/encrypt)
-│   ├── webapp.py              # pywebview 창 설정
-│   ├── tracker.py             # 활동 추적 루프
-│   ├── storage.py             # SQLite ActivityStore
-│   ├── rules.py               # 분류 규칙 엔진
-│   ├── settings.py            # 사용자 설정 모델
-│   ├── backup.py              # 백업·복원 (ZipBomb 방어 포함)
-│   ├── db_crypto.py           # DB 암호화-at-rest (Fernet)
-│   ├── updater.py             # GitHub Releases 업데이트 확인
-│   ├── startup.py             # Windows 시작 프로그램 등록
-│   ├── diagnostics.py         # 로컬 상태 진단
-│   ├── models.py              # 데이터 모델
-│   ├── paths.py               # 경로 관리 (개발/패키지 모드)
-│   └── webapi/                # React ↔ Python 브릿지 (Mixin 구조)
-│       ├── __init__.py        # WebApi 조합 클래스
-│       ├── _shared.py         # WebApiBase (타입 체커용)
-│       ├── dashboard.py
-│       ├── inbox.py
-│       ├── report.py
-│       ├── review.py
-│       ├── rules.py
-│       ├── settings.py
-│       └── backup.py
-│
-├── webui/                     # React 프론트엔드
-│   └── src/
-│       ├── api.ts             # pywebview API 래퍼 함수
-│       ├── types.ts           # 공유 TypeScript 타입
-│       ├── App.tsx            # 루트 컴포넌트
-│       ├── components/        # UI 컴포넌트
-│       │   ├── Dashboard.tsx
-│       │   ├── Inbox.tsx
-│       │   ├── Report.tsx
-│       │   ├── Review.tsx
-│       │   ├── Rules.tsx
-│       │   ├── Settings.tsx
-│       │   ├── Sidebar.tsx
-│       │   ├── Header.tsx
-│       │   ├── FocusTimer.tsx
-│       │   └── Toggle.tsx
-│       └── hooks/             # 커스텀 훅
-│           ├── useInboxHandlers.ts
-│           ├── useRulesHandlers.ts
-│           ├── useReportHandlers.ts
-│           └── useSettingsHandlers.ts
+├── time_manager/               # Python 패키지 (부트스트랩, 활동 추적, 저장, 분류 규칙, React↔Python API 브릿지 등)
+├── webui/                      # React 프론트엔드 (컴포넌트, 훅, API 래퍼)
+├── installer/                  # Inno Setup 인스톨러 스크립트
+└── tests/                      # pytest 테스트
 ```
