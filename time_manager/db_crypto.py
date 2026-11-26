@@ -20,6 +20,7 @@ import hashlib
 import logging
 import os
 import platform
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -116,6 +117,23 @@ def _set_aside_unreadable(enc_path: Path) -> None:
     )
 
 
+def _merge_wal(db_path: Path) -> None:
+    """WAL 에만 있는 기록을 본 DB 파일로 합침. 합치지 못하면 예외.
+
+    - 암호화는 본 파일만 읽음 → 합치지 않으면 최근 기록(처음이면 테이블까지)이 빠짐
+    """
+    wal = Path(f"{db_path}-wal")
+    if not wal.exists() or wal.stat().st_size == 0:
+        return
+    connection = sqlite3.connect(db_path, timeout=5)
+    try:
+        busy = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]
+    finally:
+        connection.close()
+    if busy:
+        raise RuntimeError("the database is still in use, so its recent records cannot be merged")
+
+
 def encrypt_and_replace(db_path: Path) -> bool:
     """``db_path`` → ``db_path.enc`` 암호화 후 평문 파일을 안전 삭제.
 
@@ -133,6 +151,7 @@ def encrypt_and_replace(db_path: Path) -> bool:
     enc_path = Path(str(db_path) + _ENC_SUFFIX)
     try:
         key = _get_or_create_key()
+        _merge_wal(db_path)  # 실패하면 이전 .enc 와 평문을 그대로 둠
         original = db_path.read_bytes()
         ciphertext = Fernet(key).encrypt(original)
         atomic_write_bytes(enc_path, ciphertext)  # 쓰기에 실패해도 이전 사본은 유지

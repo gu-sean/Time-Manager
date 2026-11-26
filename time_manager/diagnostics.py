@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -52,7 +53,8 @@ def _check_data_dir(path: Path) -> DiagnosticResult:
 def _check_database(path: Path) -> DiagnosticResult:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(path) as conn:
+        # sqlite3 의 with 는 연결을 닫지 않음 → closing 필요
+        with closing(sqlite3.connect(path)) as conn:
             conn.execute("PRAGMA user_version")
     except sqlite3.Error as exc:
         return DiagnosticResult("database", DiagnosticStatus.ERROR, f"Database cannot be opened: {exc}", path)

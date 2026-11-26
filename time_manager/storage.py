@@ -176,6 +176,10 @@ class ActivityStore:
         self.merge_gap_seconds = merge_gap_seconds
         self.connection_timeout_seconds = connection_timeout_seconds
         self._local = threading.local()
+        # 모든 스레드의 연결: 하나라도 열려 있으면 종료할 때 평문 DB 를 지울 수 없음
+        self._connections: list[tuple[threading.Thread, sqlite3.Connection]] = []
+        self._connections_lock = threading.Lock()
+        self._closed = False
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -837,9 +841,7 @@ class ActivityStore:
 
     def _vacuum(self) -> None:
         # VACUUM 은 배타적 접근이 필요 → 스레드 로컬 연결을 먼저 해제
-        if hasattr(self._local, 'conn'):
-            self._local.conn.close()
-            del self._local.conn
+        self._release_own_connection()
         conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds)
         try:
             conn.execute("VACUUM")
@@ -1033,16 +1035,51 @@ class ActivityStore:
                     yield day, hour, category, part, str(app_name), str(url)
 
     def close(self) -> None:
-        """호출한 스레드의 SQLite 연결 닫기 (DB 파일 암호화 전에 호출)."""
+        """모든 스레드의 SQLite 연결 닫기. 이후 사용하면 새로 엶."""
+        with self._connections_lock:
+            for _, conn in self._connections:
+                conn.close()
+            self._connections.clear()
+            self._local = threading.local()  # 다른 스레드에 남은 닫힌 연결도 버림
+
+    def shutdown(self) -> None:
+        """앱 종료용: 모두 닫고 다시 열지 않음 (DB 파일 암호화 전에 호출).
+
+        - 늦게 도착한 화면 요청이 DB 를 다시 여는 것 방지
+        """
+        with self._connections_lock:
+            self._closed = True
+        self.close()
+
+    def _open_connection(self) -> sqlite3.Connection:
+        with self._connections_lock:
+            if self._closed:
+                raise sqlite3.ProgrammingError("ActivityStore is closed")
+            # 화면 요청마다 스레드가 새로 생김 → 끝난 스레드의 연결은 바로 정리
+            alive = []
+            for owner, conn in self._connections:
+                if owner.is_alive():
+                    alive.append((owner, conn))
+                else:
+                    conn.close()
+            # 각 연결은 만든 스레드만 사용. 검사를 끄는 것은 다른 스레드에서 닫기 위함
+            conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds, check_same_thread=False)
+            self._connections = [*alive, (threading.current_thread(), conn)]
+        return conn
+
+    def _release_own_connection(self) -> None:
         conn = getattr(self._local, "conn", None)
-        if conn is not None:
-            conn.close()
-            del self._local.conn
+        if conn is None:
+            return
+        with self._connections_lock:
+            self._connections = [item for item in self._connections if item[1] is not conn]
+        conn.close()
+        del self._local.conn
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         if not hasattr(self._local, 'conn'):
-            self._local.conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds)
+            self._local.conn = self._open_connection()
         conn = self._local.conn
         try:
             yield conn

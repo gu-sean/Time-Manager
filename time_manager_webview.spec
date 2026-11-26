@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-# main.py 를 진입점으로 TimeManagerWeb.exe 빌드
-# 주의: 설치 스크립트(installer/TimeManager.iss)는 TimeManager.exe 를 찾음
+# main.py 를 진입점으로 TimeManager.exe 빌드
+# - 이름을 바꾸면 installer/TimeManager.iss, version_info.txt 도 함께 수정
 
 from PyInstaller.utils.hooks import collect_dynamic_libs
 
@@ -64,7 +64,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="TimeManagerWeb",
+    name="TimeManager",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

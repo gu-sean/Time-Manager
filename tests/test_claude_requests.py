@@ -1,12 +1,18 @@
 """Claude 는 공식 SDK 사용: 네트워크 없이 요청 내용 검증."""
 import json
+import sys
 from collections.abc import Callable
 
 import anthropic
-import httpx
 import pytest
 
 from time_manager import ai
+
+# SDK 버전에 따라 httpx 또는 httpx2 를 사용 → 설치된 SDK 의 것을 그대로 씀
+httpx = sys.modules[
+    next(base.__module__ for base in anthropic.DefaultHttpxClient.__mro__ if base.__module__.startswith("httpx"))
+    .split(".")[0]
+]
 
 
 @pytest.fixture

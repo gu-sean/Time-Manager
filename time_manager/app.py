@@ -64,5 +64,5 @@ def run_webview(project_root: Path) -> None:
         _run_webview(project_root, store=store, tracker=tracker, settings_store=settings_store, rules_path=rules_path)
     finally:
         tracker.stop()
-        store.close()
+        store.shutdown()
         encrypt_and_replace(db_path)

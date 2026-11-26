@@ -5,4 +5,4 @@ winotify>=1.1.0
 pywebview>=6.0
 cryptography>=42.0.0
 keyring>=25.0.0
-anthropic>=0.94.0
+anthropic>=0.94.0,<3
