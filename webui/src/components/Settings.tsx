@@ -663,7 +663,7 @@ export default function Settings({
           <div className="tm-settings-row" style={{ borderTop: '1px solid var(--tm-line)' }}>
             <div>
               <div className="tm-settings-row-label">URL은 도메인만 저장</div>
-              <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 1 }}>전체 경로 대신 도메인만 기록해요.</div>
+              <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 1 }}>전체 경로·검색어 대신 도메인만 기록해요. 바꾼 뒤의 기록부터 적용돼요.</div>
             </div>
             <Toggle label="URL은 도메인만 저장" checked={data.storeDomainOnly} onChange={(v) => savePrivacy({ storeDomainOnly: v })} />
           </div>

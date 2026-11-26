@@ -395,7 +395,7 @@ let mockSettings: SettingsData = {
   notificationsEnabled: true,
   autoBackupEnabled: true,
   startupEnabled: false,
-  storeDomainOnly: false,
+  storeDomainOnly: true,
   storeWindowTitles: true,
   retentionDays: 0,
   theme: 'light',

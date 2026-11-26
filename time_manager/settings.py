@@ -17,7 +17,8 @@ class AppSettings:
     work_start_hour: int = 9
     work_end_hour: int = 18
     onboarding_profile: str = ""
-    store_domain_only: bool = False
+    # 새 설치는 켜짐: 주소의 경로·검색어를 저장하지 않음
+    store_domain_only: bool = True
     store_window_titles: bool = True
     retention_days: int = 0
     notifications_enabled: bool = True
@@ -69,6 +70,7 @@ class SettingsStore:
             work_start_hour=number("work_start_hour", 9),
             work_end_hour=number("work_end_hour", 18),
             onboarding_profile=str(data.get("onboarding_profile", "")),
+            # 기존 파일에 항목이 없으면 이전처럼 꺼짐: 업데이트만으로 저장 방식이 바뀌지 않게 함
             store_domain_only=bool(data.get("store_domain_only", False)),
             store_window_titles=bool(data.get("store_window_titles", True)),
             retention_days=max(0, number("retention_days", 0)),
