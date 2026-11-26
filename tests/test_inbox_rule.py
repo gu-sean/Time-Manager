@@ -99,7 +99,12 @@ def test_missing_and_neutral_records_are_refused(api: WebApi) -> None:
 
 @pytest.mark.parametrize(
     "seconds,text",
-    [(0, "지난주와 같음"), (30, "지난주와 같음"), (-14520, "지난주보다 4시간 2분 줄음"), (600, "지난주보다 10분 늘음")],
+    [
+        (0, "지난주 같은 시점과 같음"),
+        (30, "지난주 같은 시점과 같음"),
+        (-14520, "지난주 같은 시점보다 4시간 2분 감소"),
+        (600, "지난주 같은 시점보다 10분 증가"),
+    ],
 )
 def test_the_weekly_change_is_readable(seconds: int, text: str) -> None:
     assert _week_change_text(seconds) == text

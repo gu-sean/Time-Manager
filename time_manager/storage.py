@@ -106,6 +106,10 @@ class ActivitySession:
     primary_label: str
 
 
+# 이보다 긴 공백이 있으면 분류가 같아도 다른 구간 (자리 비움 기준과 같은 5분)
+SESSION_BREAK_SECONDS = 5 * 60
+
+
 @dataclass(frozen=True)
 class ActivityFlow:
     sessions: tuple[ActivitySession, ...]
@@ -704,16 +708,20 @@ class ActivityStore:
             if previous_category is not None and category != previous_category:
                 category_switches += 1
 
-            if current_category is not None and category != current_category:
-                close_session()
+            new_session = (
+                current_end is None
+                or category != current_category
+                or (started - current_end).total_seconds() > SESSION_BREAK_SECONDS
+            )
+            if new_session:
+                close_session()  # 첫 행이면 닫을 구간이 없음
                 current_start = started
+                current_end = ended
                 current_seconds = 0
                 current_targets = {}
-            elif current_category is None:
-                current_start = started
 
             current_category = category
-            current_end = ended
+            current_end = max(current_end, ended)  # 겹치는 행이 끝 시각을 당기지 않게 함
             current_seconds += seconds
             current_targets[target] = current_targets.get(target, 0) + seconds
             previous_target = target
@@ -722,18 +730,62 @@ class ActivityStore:
         close_session()
         return ActivityFlow(tuple(sessions), target_switches, category_switches)
 
-    def weekly_progress(self, weekly_goal_minutes: int, daily_goal_minutes: int, reference_day: date | None = None) -> WeeklyProgress:
-        current_day = reference_day or date.today()
+    def weekly_progress(
+        self,
+        weekly_goal_minutes: int,
+        daily_goal_minutes: int,
+        reference_day: date | None = None,
+        now: datetime | None = None,
+    ) -> WeeklyProgress:
+        """이번 주 월요일 ~ 기준일의 생산 시간과, 지난주의 같은 구간.
+
+        - 기준일이 오늘이면 지난주 같은 요일은 지금 시각까지만 계산 (끝나지 않은 오늘과 맞춤)
+        - 기준일이 지난 날이면 하루 전체를 비교 (일요일 기준 = 두 주 전체)
+        """
+        now = now or datetime.now()
+        current_day = reference_day or now.date()
         week_start = current_day - timedelta(days=current_day.weekday())
-        current_rows = self._daily_summaries_between(week_start, (current_day - week_start).days + 1)
-        previous_rows = self._daily_summaries_between(week_start - timedelta(days=7), 7)
+        days = current_day.weekday() + 1
+        current_rows = self._daily_summaries_between(week_start, days)
+
+        unfinished = current_day == now.date()
+        full_days = days - 1 if unfinished else days
+        previous_start = week_start - timedelta(days=7)
+        previous = 0
+        if full_days:
+            previous = sum(
+                row.productive_seconds for row in self._daily_summaries_between(previous_start, full_days)
+            )
+        if unfinished:
+            same_day = current_day - timedelta(days=7)
+            previous += self._productive_seconds_before(datetime.combine(same_day, now.time()))
+
         threshold = daily_goal_minutes * 60
         return WeeklyProgress(
             productive_seconds=sum(row.productive_seconds for row in current_rows),
-            previous_productive_seconds=sum(row.productive_seconds for row in previous_rows),
+            previous_productive_seconds=previous,
             achieved_days=sum(1 for row in current_rows if row.productive_seconds >= threshold),
             weekly_goal_minutes=weekly_goal_minutes,
         )
+
+    def _productive_seconds_before(self, cutoff: datetime) -> int:
+        """``cutoff`` 날짜에 시작한 생산 시간 중 ``cutoff`` 시각 전까지의 합."""
+        start, end = self._day_bounds(cutoff.date())
+        with self._connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT started_at, seconds
+                FROM activity_events
+                WHERE started_at >= ? AND started_at < ?
+                    AND category = ? AND deleted_at IS NULL
+                """,
+                (start, end, Category.PRODUCTIVE.value),
+            ).fetchall()
+        total = 0
+        for started_at, seconds in rows:
+            started = datetime.fromisoformat(started_at).replace(tzinfo=None)  # 기록된 벽시계 시각
+            total += min(int(seconds), max(0, int((cutoff - started).total_seconds())))
+        return total
 
     def get_event(self, event_id: int) -> EventTarget | None:
         with self._connection() as conn:

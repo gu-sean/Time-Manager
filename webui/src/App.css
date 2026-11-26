@@ -1576,6 +1576,7 @@
 }
 
 .tm-summary-stat-row {
+  word-break: keep-all;
   display: flex;
   align-items: center;
   gap: 8px;

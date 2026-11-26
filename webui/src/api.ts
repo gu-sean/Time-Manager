@@ -321,7 +321,7 @@ const MOCK_REPORT: ReportData = {
   startIso: new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10),
   endIso: new Date().toISOString().slice(0, 10),
   weeklyScorePct: 82,
-  weeklyProgressText: '26h 05m / 30h 00m (82%) · 일간 목표 달성 5일 · 지난주 대비 +45분',
+  weeklyProgressText: '26h 05m / 30h 00m (82%) · 일간 목표 달성 5일 · 지난주 같은 시점보다 45분 증가',
   coachingText: '반복 비생산 활동은 YouTube입니다. 21시 전후의 사용 패턴을 먼저 점검해보세요.',
   weekdayText: '금요일의 생산 흐름이 가장 안정적입니다.',
   weekdayBars: [

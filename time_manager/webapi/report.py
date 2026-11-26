@@ -11,8 +11,8 @@ from ._shared import WebApiBase
 
 def _week_change_text(seconds: int) -> str:
     if abs(seconds) < 60:
-        return "지난주와 같음"
-    return f"지난주보다 {_format_seconds(abs(seconds))} {'늘음' if seconds > 0 else '줄음'}"
+        return "지난주 같은 시점과 같음"
+    return f"지난주 같은 시점보다 {_format_seconds(abs(seconds))} {'증가' if seconds > 0 else '감소'}"
 
 
 class ReportMixin(WebApiBase):
