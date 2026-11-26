@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { InboxData, InboxRecord } from '../types';
+import type { InboxData } from '../types';
 
 const PAGE_SIZE = 20;
 
@@ -30,12 +30,26 @@ interface InboxProps {
   onClearSearch: () => void;
   onDelete: (eventId: number) => void;
   onRestore: () => void;
+  onReclassify: (eventId: number, category: string) => Promise<void>;
 }
 
-export default function Inbox({ data, onSearch, onClearSearch, onDelete, onRestore }: InboxProps) {
+export default function Inbox({ data, onSearch, onClearSearch, onDelete, onRestore, onReclassify }: InboxProps) {
   const [query, setQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('');
-  const [selected, setSelected] = useState<InboxRecord | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [reclassifying, setReclassifying] = useState(false);
+  // Looked up from the latest data so it never shows a stale category or a removed record.
+  const selected = data.records.find((record) => record.id === selectedId) ?? null;
+
+  const reclassify = async (category: string) => {
+    if (!selected) return;
+    setReclassifying(true);
+    try {
+      await onReclassify(selected.id, category);
+    } finally {
+      setReclassifying(false);
+    }
+  };
   const [page, setPage] = useState(0);
 
   const pageCount = Math.max(1, Math.ceil(data.records.length / PAGE_SIZE));
@@ -99,7 +113,7 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
         </div>
 
         {data.searchActive && data.resultCount !== null && (
-          <div role="status" aria-live="polite" style={{ fontSize: 11.5, color: '#968F82', marginBottom: 8 }}>
+          <div role="status" aria-live="polite" style={{ fontSize: 11.5, color: 'var(--tm-ink-4)', marginBottom: 8 }}>
             최근 30일 · 검색 결과 {data.resultCount}건
           </div>
         )}
@@ -120,17 +134,17 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
             tabIndex={0}
             aria-label={`${row.time} ${row.label} ${row.duration} 선택`}
             aria-pressed={selected?.id === row.id}
-            onClick={() => setSelected(row)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(row); } }}
+            onClick={() => setSelectedId(row.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(row.id); } }}
           >
-            <span style={{ color: '#6E6759', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{row.time}</span>
+            <span style={{ color: 'var(--tm-ink-3)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{row.time}</span>
             <span>
               <CategoryPill category={row.category} label={row.categoryLabel} />
             </span>
-            <span style={{ color: '#3B362E', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ color: 'var(--tm-ink)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {row.label}
             </span>
-            <span style={{ color: '#4A453C', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{row.duration}</span>
+            <span style={{ color: 'var(--tm-ink-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{row.duration}</span>
           </div>
         ))}
 
@@ -158,6 +172,22 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
           </div>
         )}
 
+        <div className="tm-editor-actions" role="group" aria-label="선택 기록 분류 변경">
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--tm-ink-4)', alignSelf: 'center' }}>선택 기록 분류</span>
+          {CATEGORY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              className={`tm-btn-small ${selected?.category === opt.value ? 'tm-btn-primary' : 'tm-btn-ghost'}`}
+              type="button"
+              aria-pressed={selected?.category === opt.value}
+              disabled={!selected || reclassifying || selected.category === opt.value}
+              onClick={() => reclassify(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         <div className="tm-editor-actions">
           <button
             className="tm-btn-small tm-btn-ghost"
@@ -172,7 +202,8 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
           </button>
         </div>
         <div style={{ fontSize: 11, color: '#A79F92', marginTop: 11 }}>
-          분류 변경은 규칙 탭에서 할 수 있습니다. 정리함에서는 기록을 삭제하거나 복원할 수 있어요.
+          기록을 선택해 분류를 바꾸면 그 기록에만 적용되고, 내장 분류 추천이 학습에 우선 반영해요. 앞으로의 활동에도
+          적용하려면 규칙 탭에서 규칙을 추가하세요.
         </div>
       </div>
     </div>

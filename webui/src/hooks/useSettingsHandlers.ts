@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import {
   applyPreset,
+  clearAiApiKey,
   checkUpdate,
   exportBackup,
   exportCsv,
@@ -10,17 +11,21 @@ import {
   getDashboard,
   getSettings,
   installUpdate,
+  listAiModels,
   restoreBackup,
   runDiagnostics,
+  saveAiSettings,
   saveSettings,
+  setAiApiKey,
   setProfile,
   setTheme,
+  testAiConnection,
   toggleAutoBackup,
   toggleExcludeSelf,
   toggleNotifications,
   toggleStartup,
 } from '../api';
-import type { DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
+import type { AIModelList, AISettingsInput, AITestResult, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
 
 interface Setters {
   setSettings: (data: SettingsData) => void;
@@ -131,7 +136,37 @@ export function useSettingsHandlers({
     }
   }, []);
 
+  const handleSaveAiSettings = useCallback(async (input: AISettingsInput) => {
+    const result = await saveAiSettings(input);
+    setSettings(result);
+    if (!result.error) setToast('분석 방식을 저장했습니다.');
+  }, []);
+
+  const handleSetAiApiKey = useCallback(async (service: string, apiKey: string, baseUrl: string) => {
+    const result = await setAiApiKey(service, apiKey, baseUrl);
+    setSettings(result);
+    if (!result.error) setToast('API 키를 안전하게 저장했습니다.');
+  }, []);
+
+  const handleClearAiApiKey = useCallback(async (service: string, baseUrl: string) => {
+    setSettings(await clearAiApiKey(service, baseUrl));
+    setToast('API 키를 삭제했습니다.');
+  }, []);
+
+  const handleListAiModels = useCallback(async (service: string, baseUrl: string): Promise<AIModelList> => {
+    return listAiModels(service, baseUrl);
+  }, []);
+
+  const handleTestAiConnection = useCallback(async (): Promise<AITestResult> => {
+    return testAiConnection();
+  }, []);
+
   return {
+    handleSaveAiSettings,
+    handleSetAiApiKey,
+    handleClearAiApiKey,
+    handleTestAiConnection,
+    handleListAiModels,
     handleSaveSettings,
     handleToggleExcludeSelf,
     handleToggleAutoBackup,

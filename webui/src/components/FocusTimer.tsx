@@ -112,7 +112,7 @@ export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
       </div>
 
       {summary && summary.count > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border, #EEE9E0)', fontSize: 11.5, color: '#8A8377', textAlign: 'center' }}>
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border, #EEE9E0)', fontSize: 11.5, color: 'var(--tm-ink-4)', textAlign: 'center' }}>
           오늘 25분+ 집중 구간 <strong style={{ color: FOCUS_COLOR }}>{summary.count}개</strong>
           {summary.totalTime && <> · <strong style={{ color: FOCUS_COLOR }}>{summary.totalTime}</strong></>}
         </div>

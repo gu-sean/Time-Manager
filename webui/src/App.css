@@ -1,4 +1,11 @@
 .tm-shell {
+  --tm-ink: #3b362e;
+  --tm-ink-2: #4a453c;
+  --tm-ink-3: #6e6759;
+  --tm-ink-4: #8a8377;
+  --tm-line: #f0ece3;
+  --tm-cell-empty: #f0eee7;
+  --tm-ring-track: #eeeae1;
   width: 100%;
   height: 100vh;
   background: #f6f5f0;
@@ -1435,10 +1442,18 @@
 }
 
 .tm-weekday-time {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  justify-content: center;
+  column-gap: 2px;
+  min-height: 2.6em;
   font-size: 9px;
   font-weight: 700;
+  line-height: 1.3;
   color: #b6afa2;
-  white-space: nowrap;
+  text-align: center;
+  word-break: keep-all;
 }
 
 .tm-weekday-label {
@@ -1710,6 +1725,13 @@
 
 /* ---- dark mode ---- */
 .tm-shell.dark {
+  --tm-ink: #f0eadc;
+  --tm-ink-2: #e0dacb;
+  --tm-ink-3: #c2bbac;
+  --tm-ink-4: #aaa394;
+  --tm-line: #363b32;
+  --tm-cell-empty: #2d312a;
+  --tm-ring-track: #363b32;
   background: #171916;
   color: #e8e3d6;
 }
@@ -1899,7 +1921,36 @@
   color: #a8d4b4;
 }
 
+/* The rule above darkens ghost buttons, so their text has to be lightened too. */
+.tm-shell.dark .tm-btn-ghost,
+.tm-shell.dark .tm-preset-name {
+  color: #d8d2c4;
+}
+
+.tm-shell.dark .tm-preset-item {
+  background: #1b1e1a;
+  border-color: #363b32;
+}
+
+.tm-shell.dark .tm-preset-item.active {
+  background: rgba(186, 106, 73, 0.18);
+  border-color: #ba6a49;
+}
+
+.tm-shell.dark .tm-period-chip:not(.active) {
+  color: #d8d2c4;
+}
+
+.tm-shell.dark .tm-legend-pct {
+  color: #f0eadc;
+}
+
+.tm-shell.dark .tm-composition-legend-item {
+  color: #aaa394;
+}
+
 .tm-shell.dark pre {
+  color-scheme: dark;
   color: #c8c0b1 !important;
 }
 

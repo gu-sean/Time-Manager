@@ -1,11 +1,14 @@
 import { useCallback } from 'react';
 import type { RefObject } from 'react';
-import { deleteEvent, getInbox, restoreDeletedEvent } from '../api';
+import { deleteEvent, getInbox, reclassifyEvent, restoreDeletedEvent } from '../api';
 import type { InboxData } from '../types';
 
 export function useInboxHandlers(
   selectedDayRef: RefObject<string>,
+  inbox: InboxData | null,
   setInbox: (data: InboxData) => void,
+  onRecordsChanged: () => void,
+  setToast: (msg: string) => void,
 ) {
   const handleSearch = useCallback(async (query: string, category: string | null) => {
     setInbox(await getInbox(query, category, selectedDayRef.current));
@@ -15,13 +18,27 @@ export function useInboxHandlers(
     setInbox(await getInbox('', null, selectedDayRef.current));
   }, []);
 
-  const handleDelete = useCallback(async (eventId: number) => {
-    setInbox(await deleteEvent(eventId));
-  }, []);
+  // Record changes answer with today's list, so reload the view the user is looking at.
+  const reloadView = async () => {
+    setInbox(await getInbox(inbox?.query ?? '', inbox?.category ?? null, selectedDayRef.current));
+    onRecordsChanged();
+  };
 
-  const handleRestore = useCallback(async () => {
-    setInbox(await restoreDeletedEvent());
-  }, []);
+  const handleDelete = async (eventId: number) => {
+    await deleteEvent(eventId);
+    await reloadView();
+  };
 
-  return { handleSearch, handleClearSearch, handleDelete, handleRestore };
+  const handleRestore = async () => {
+    await restoreDeletedEvent();
+    await reloadView();
+  };
+
+  const handleReclassify = async (eventId: number, category: string) => {
+    await reclassifyEvent(eventId, category);
+    await reloadView();
+    setToast('선택한 기록의 분류를 변경했습니다.');
+  };
+
+  return { handleSearch, handleClearSearch, handleDelete, handleRestore, handleReclassify };
 }

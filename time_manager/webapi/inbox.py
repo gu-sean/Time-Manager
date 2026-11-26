@@ -39,6 +39,9 @@ class InboxMixin(WebApiBase):
         return {
             "records": records,
             "searchActive": searching,
+            # Echoed so the UI can reload the same view after changing a record.
+            "query": query,
+            "category": category,
             "resultCount": len(records) if searching else None,
         }
 

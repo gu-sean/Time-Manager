@@ -18,7 +18,7 @@ class TestGetRuleSuggestions:
         suggestions = api.get_rule_suggestions()
 
         targets = [s["target"] for s in suggestions]
-        assert targets[0] == "Notion"
+        assert targets[0] == "notion.exe"
         assert "10분" == suggestions[0]["timeLabel"]
 
     def test_ignores_already_classified_activity(self, api: WebApi) -> None:
@@ -40,6 +40,22 @@ class TestGetRuleSuggestions:
         suggestions = api.get_rule_suggestions(limit=2)
 
         assert len(suggestions) == 2
+
+
+    def test_groups_websites_by_domain_and_skips_bare_browsers(self, api: WebApi) -> None:
+        api.store.record(_unclassified("chrome.exe", "A", "https://news.example.com/a"), 120)
+        api.store.record(_unclassified("chrome.exe", "B", "https://news.example.com/b"), 120)
+        api.store.record(_unclassified("chrome.exe", "URL를 읽지 못한 탭"), 600)
+
+        suggestions = api.get_rule_suggestions()
+
+        assert [(s["target"], s["timeLabel"]) for s in suggestions] == [("news.example.com", "4분")]
+
+    def test_hides_targets_that_got_a_rule(self, api: WebApi) -> None:
+        api.store.record(_unclassified("notion.exe", "Notion"), 600)
+        api.apply_rule_suggestion("notion.exe", "productive")
+
+        assert api.get_rule_suggestions() == []
 
 
 class TestApplyRuleSuggestion:

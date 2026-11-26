@@ -12,6 +12,7 @@ import {
   getDashboard,
   getInbox,
   getReport,
+  getAiCoaching,
   getReview,
   getRules,
   getSettings,
@@ -161,7 +162,14 @@ function App() {
     setDashboard(await toggleTracking());
   }, []);
 
-  const inboxHandlers = useInboxHandlers(selectedDayRef, setInbox);
+  // Review and report are cached per visit, so drop them when records change.
+  const handleRecordsChanged = useCallback(() => {
+    setReview(null);
+    setReport(null);
+    refresh();
+  }, [refresh]);
+
+  const inboxHandlers = useInboxHandlers(selectedDayRef, inbox, setInbox, handleRecordsChanged, setToast);
   const rulesHandlers = useRulesHandlers(setRules, setToast);
   const reportHandlers = useReportHandlers(report, setReport, setToast);
   const settingsHandlers = useSettingsHandlers({
@@ -175,6 +183,7 @@ function App() {
     selectedDayRef,
   });
 
+  const externalAi = !!settings && settings.aiProvider !== 'local';
   const meta = PAGE_META[activePage] ?? PAGE_META.dashboard;
   const settingsFormKey = settings
     ? [
@@ -222,9 +231,17 @@ function App() {
               onClearSearch={inboxHandlers.handleClearSearch}
               onDelete={inboxHandlers.handleDelete}
               onRestore={inboxHandlers.handleRestore}
+              onReclassify={inboxHandlers.handleReclassify}
             />
           )}
-          {activePage === 'review' && review && <Review data={review} />}
+          {activePage === 'review' && review && (
+            <Review
+              data={review}
+              external={externalAi}
+              dateIso={selectedDay}
+              onGetCoaching={getAiCoaching}
+            />
+          )}
           {activePage === 'rules' && rules && (
             <Rules
               data={rules}
@@ -233,6 +250,8 @@ function App() {
               onDelete={rulesHandlers.handleDeleteRule}
               onGetSuggestions={rulesHandlers.handleGetRuleSuggestions}
               onApplySuggestion={rulesHandlers.handleApplyRuleSuggestion}
+              external={externalAi}
+              onGetAiSuggestions={rulesHandlers.handleGetAiSuggestions}
             />
           )}
           {activePage === 'report' && report && (
@@ -263,6 +282,11 @@ function App() {
               onExportCsvPeriod={settingsHandlers.handleExportCsvPeriod}
               onExportBackup={settingsHandlers.handleExportBackup}
               onRestoreBackup={settingsHandlers.handleRestoreBackup}
+              onSaveAiSettings={settingsHandlers.handleSaveAiSettings}
+              onSetAiApiKey={settingsHandlers.handleSetAiApiKey}
+              onClearAiApiKey={settingsHandlers.handleClearAiApiKey}
+              onTestAiConnection={settingsHandlers.handleTestAiConnection}
+              onListAiModels={settingsHandlers.handleListAiModels}
             />
           )}
         </div>

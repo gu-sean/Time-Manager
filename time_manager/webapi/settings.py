@@ -55,6 +55,7 @@ class SettingsMixin(WebApiBase):
             "notificationStatus": self._notification_status_text(),
             "diagnosticInfo": self._diagnostic_info_text(),
             "diagnosticResults": "",
+            **self._ai_settings_payload(),
         }
 
     def _notification_status_text(self) -> str:

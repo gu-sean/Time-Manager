@@ -1,4 +1,8 @@
-import type { ReviewData, ReviewStatGroup } from '../types';
+import { useState } from 'react';
+import { previewAiRequest } from '../api';
+import { useAiRequest } from '../hooks/useAiRequest';
+import { AiFailure, AiPreview, AiProgress } from './AiRequestControls';
+import type { AICoaching, ReviewData, ReviewStatGroup } from '../types';
 
 function StatGroupCard({
   title,
@@ -41,11 +45,127 @@ function StatGroupCard({
   );
 }
 
-interface ReviewProps {
-  data: ReviewData;
+type CoachingScope = 'day' | 'week';
+
+interface AiCoachingCardProps {
+  external: boolean;
+  dateIso: string;
+  onGetCoaching: (
+    scope: CoachingScope, dateIso: string, refresh: boolean, requestId: string, builtin: boolean,
+  ) => Promise<AICoaching>;
 }
 
-export default function Review({ data }: ReviewProps) {
+function AiCoachingCard({ external, dateIso, onGetCoaching }: AiCoachingCardProps) {
+  const [scope, setScope] = useState<CoachingScope>('day');
+  const [result, setResult] = useState<AICoaching | null>(null);
+  const request = useAiRequest();
+  const loading = request.loading;
+  const [notice, setNotice] = useState<{ message: string; offerBuiltin: boolean } | null>(null);
+
+  const changeScope = (next: CoachingScope) => {
+    request.cancel(); // an answer for the other range must not appear here
+    setScope(next);
+    setResult(null);
+    setNotice(null);
+  };
+
+  const run = async (refresh: boolean, builtin = false) => {
+    setNotice(null);
+    setResult(null);
+    try {
+      const next = await request.run((requestId) => onGetCoaching(scope, dateIso, refresh, requestId, builtin));
+      if (!next) return;
+      if (next.error) setNotice({ message: next.error, offerBuiltin: next.canFallback });
+      else setResult(next);
+    } catch {
+      setNotice({ message: '분석 중 오류가 발생했어요.', offerBuiltin: external });
+    }
+  };
+
+  const cancel = () => {
+    if (request.cancel()) setNotice({ message: '분석을 취소했어요.', offerBuiltin: external });
+  };
+
+  return (
+    <div className="tm-card">
+      <div className="tm-rule-list-head" style={{ marginBottom: 6 }}>
+        <div className="tm-card-title">✨ 맞춤 코칭</div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button
+            className={`tm-btn-small ${scope === 'day' ? 'tm-btn-primary' : 'tm-btn-ghost'}`}
+            type="button"
+            aria-pressed={scope === 'day'}
+            onClick={() => changeScope('day')}
+          >
+            선택한 날
+          </button>
+          <button
+            className={`tm-btn-small ${scope === 'week' ? 'tm-btn-primary' : 'tm-btn-ghost'}`}
+            type="button"
+            aria-pressed={scope === 'week'}
+            onClick={() => changeScope('week')}
+          >
+            최근 7일
+          </button>
+          <button className="tm-btn-small tm-btn-primary" type="button" disabled={loading} onClick={() => run(!!result)}>
+            {loading ? '분석 중…' : result ? '다시 분석' : '코칭 받기'}
+          </button>
+        </div>
+      </div>
+      {!result && !loading && !notice && (
+        <div style={{ fontSize: 11, color: '#A79F92' }}>
+          {external
+            ? '선택한 AI 서버로 집계된 시간 통계와 앱·도메인 이름만 전송해 코칭을 만들어요.'
+            : '이 PC의 기록 통계로 코칭을 만들어요. 아무것도 전송하지 않습니다.'}
+        </div>
+      )}
+      {external && (
+        <div style={{ marginTop: 8 }}>
+          <AiPreview key={scope} load={() => previewAiRequest('coaching', scope, dateIso)} />
+        </div>
+      )}
+      {loading && <AiProgress elapsed={request.elapsed} external={external} onCancel={cancel} />}
+      {notice && (
+        <AiFailure message={notice.message} onUseBuiltin={notice.offerBuiltin ? () => run(false, true) : undefined} />
+      )}
+      {result && (
+        <div>
+          <div className="tm-review-suggestion-text" style={{ marginBottom: 8 }}>{result.headline}</div>
+          {result.insights.length > 0 && (
+            <ul style={{ margin: '0 0 8px', paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6 }}>
+              {result.insights.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          )}
+          {result.actions.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#C19A45', marginBottom: 2 }}>이렇게 해보세요</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6 }}>
+                {result.actions.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          <div style={{ fontSize: 10.5, color: '#A79F92', marginTop: 8 }}>
+            {result.scopeLabel} 기준 · {result.source}
+            {result.generated && ' · AI가 생성한 요약이라 부정확할 수 있어요.'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ReviewProps {
+  data: ReviewData;
+  external: boolean;
+  dateIso: string;
+  onGetCoaching: AiCoachingCardProps['onGetCoaching'];
+}
+
+export default function Review({ data, external, dateIso, onGetCoaching }: ReviewProps) {
   const { composition, highlights, suggestion, flow, focus } = data;
   return (
     <div className="tm-page">
@@ -107,6 +227,8 @@ export default function Review({ data }: ReviewProps) {
           <div className="tm-review-suggestion-text">{suggestion}</div>
         </div>
       </div>
+
+      <AiCoachingCard key={dateIso} external={external} dateIso={dateIso} onGetCoaching={onGetCoaching} />
 
       <div className="tm-review-stat-groups">
         <StatGroupCard title="오늘의 흐름" tag="흐름" tBg="#EAF1EC" tFg="#6F9A7C" group={flow} />

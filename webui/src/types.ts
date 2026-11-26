@@ -66,6 +66,8 @@ export interface InboxData {
   records: InboxRecord[];
   searchActive: boolean;
   resultCount: number | null;
+  query: string;
+  category: string | null;
 }
 
 export interface ReviewSegment {
@@ -222,5 +224,78 @@ export interface SettingsData {
   notificationStatus: string;
   diagnosticInfo: string;
   diagnosticResults: string;
+  aiProvider: AIProvider;
+  aiProviderOptions: Option[];
+  aiService: string;
+  aiServices: AIService[];
   error?: string;
+}
+
+export interface AIRuleSuggestion {
+  target: string;
+  displayTarget: string;
+  timeLabel: string;
+  category: 'productive' | 'unproductive' | 'neutral';
+  categoryLabel: string;
+  reason: string;
+}
+
+export type AIProvider = 'local' | 'model';
+
+export interface AIService {
+  value: string;
+  label: string;
+  help: string;
+  editableUrl: boolean;
+  keyRequired: boolean;
+  keyPlaceholder: string;
+  suggestedModels: Option[];
+  model: string;
+  baseUrl: string;
+  hasKey: boolean;
+}
+
+export interface AIModelList {
+  models: string[];
+  error: string;
+}
+
+export interface AISettingsInput {
+  provider: AIProvider;
+  service: string;
+  model: string;
+  baseUrl: string;
+}
+
+export interface AIRequestPreview {
+  serviceLabel: string;
+  url: string;
+  model: string;
+  instructions: string;
+  data: string;
+  error: string;
+}
+
+export interface AIRuleSuggestionsResult {
+  canFallback: boolean;
+  items: AIRuleSuggestion[];
+  skipped: number;
+  source: string;
+  error: string;
+}
+
+export interface AICoaching {
+  headline: string;
+  insights: string[];
+  actions: string[];
+  scopeLabel: string;
+  source: string;
+  generated: boolean;
+  canFallback: boolean;
+  error: string;
+}
+
+export interface AITestResult {
+  ok: boolean;
+  message: string;
 }

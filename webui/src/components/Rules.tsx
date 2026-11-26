@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { RuleItem, RuleSuggestion, RulesData } from '../types';
+import { previewAiRequest } from '../api';
+import { useAiRequest } from '../hooks/useAiRequest';
+import { AiFailure, AiPreview, AiProgress } from './AiRequestControls';
+import type { AIRuleSuggestion, AIRuleSuggestionsResult, RuleItem, RuleSuggestion, RulesData } from '../types';
 
 const PAGE_SIZE = 20;
 const TYPE_OPTIONS = ['도메인', '앱 이름', '창 제목 키워드'];
@@ -19,6 +22,8 @@ interface RulesProps {
   onDelete: (key: string, value: string) => void;
   onGetSuggestions: () => Promise<RuleSuggestion[]>;
   onApplySuggestion: (target: string, category: string) => Promise<RulesData>;
+  external: boolean;
+  onGetAiSuggestions: (requestId: string, builtin: boolean) => Promise<AIRuleSuggestionsResult>;
 }
 
 interface EditTarget {
@@ -26,8 +31,18 @@ interface EditTarget {
   value: string;
 }
 
-function RuleSuggestions({ onGetSuggestions, onApplySuggestion }: Pick<RulesProps, 'onGetSuggestions' | 'onApplySuggestion'>) {
+function RuleSuggestions({
+  external,
+  onGetSuggestions,
+  onGetAiSuggestions,
+  onApplySuggestion,
+}: Pick<RulesProps, 'external' | 'onGetSuggestions' | 'onGetAiSuggestions' | 'onApplySuggestion'>) {
   const [suggestions, setSuggestions] = useState<RuleSuggestion[] | null>(null);
+  const [recommendations, setRecommendations] = useState<Record<string, AIRuleSuggestion>>({});
+  const [analysis, setAnalysis] = useState<{ source: string; skipped: number } | null>(null);
+  const request = useAiRequest();
+  const [error, setError] = useState('');
+  const [offerBuiltin, setOfferBuiltin] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,68 +55,132 @@ function RuleSuggestions({ onGetSuggestions, onApplySuggestion }: Pick<RulesProp
     };
   }, []);
 
+  const recommend = async (builtin = false) => {
+    setError('');
+    setOfferBuiltin(false);
+    // Drop the previous answer so it is never mistaken for the new one.
+    setRecommendations({});
+    setAnalysis(null);
+    try {
+      const result = await request.run((requestId) => onGetAiSuggestions(requestId, builtin));
+      if (!result) return;
+      setRecommendations(Object.fromEntries(result.items.map((item) => [item.target, item])));
+      setAnalysis(result.error ? null : { source: result.source, skipped: result.skipped });
+      setError(result.error);
+      setOfferBuiltin(result.canFallback);
+    } catch {
+      setError('분석 중 오류가 발생했어요.');
+      setOfferBuiltin(external);
+    }
+  };
+
+  const cancel = () => {
+    if (!request.cancel()) return;
+    setError('분석을 취소했어요.');
+    setOfferBuiltin(external);
+  };
+
   const dismiss = (target: string) => {
     setSuggestions((prev) => (prev ? prev.filter((s) => s.target !== target) : prev));
   };
 
   const apply = async (target: string, category: string) => {
     setPending(target);
-    await onApplySuggestion(target, category);
+    const result = await onApplySuggestion(target, category);
     setPending(null);
-    dismiss(target);
+    if (result.error) {
+      setError(result.error);
+      setOfferBuiltin(false);
+    } else dismiss(target);
   };
 
-  if (!suggestions || suggestions.length === 0) return null;
+  if (!suggestions) return null;
 
   return (
     <div className="tm-card">
-      <div className="tm-card-title" style={{ marginBottom: 6 }}>
-        분류 제안
+      <div className="tm-rule-list-head" style={{ marginBottom: 6 }}>
+        <div className="tm-card-title">분류 제안</div>
+        <button
+          className="tm-btn-small tm-btn-primary"
+          type="button"
+          onClick={() => recommend()}
+          disabled={request.loading || suggestions.length === 0}
+        >
+          {request.loading ? '분석 중…' : analysis ? '다시 분석' : '✨ 맞춤 추천 받기'}
+        </button>
       </div>
       <div style={{ fontSize: 11, color: '#A79F92', marginBottom: 10 }}>
-        최근 자주 등장했지만 아직 규칙이 없는 활동입니다. 분류를 선택하면 규칙으로 등록됩니다.
+        최근 자주 쓴 앱·사이트 중 아직 규칙이 없는 항목입니다. 분류를 선택하면 규칙으로 등록됩니다.{' '}
+        {external ? '맞춤 추천을 받으면 앱 이름과 도메인이 선택한 AI 서버로 전송됩니다.' : '맞춤 추천은 이 PC에서만 분석합니다.'}
+        {analysis && ` (${analysis.source})`}
       </div>
-      {suggestions.map((s) => (
-        <div
-          key={s.target}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #F0ECE3', flexWrap: 'wrap' }}
-        >
-          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: '#3B362E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {s.displayTarget}
-          </span>
-          <span style={{ fontSize: 11, color: '#A79F92' }}>{s.timeLabel}</span>
-          <button
-            className="tm-btn-small tm-btn-primary"
-            type="button"
-            disabled={pending === s.target}
-            onClick={() => apply(s.target, 'productive')}
-          >
-            생산적
-          </button>
-          <button
-            className="tm-btn-small tm-btn-ghost"
-            type="button"
-            disabled={pending === s.target}
-            onClick={() => apply(s.target, 'unproductive')}
-          >
-            비생산적
-          </button>
-          <button
-            className="tm-btn-small tm-btn-ghost"
-            type="button"
-            aria-label={`${s.displayTarget} 제안 무시`}
-            disabled={pending === s.target}
-            onClick={() => dismiss(s.target)}
-          >
-            무시
-          </button>
+      {external && suggestions.length > 0 && <AiPreview load={() => previewAiRequest('suggestions')} />}
+      {request.loading && <AiProgress elapsed={request.elapsed} external={external} onCancel={cancel} />}
+      {error && <AiFailure message={error} onUseBuiltin={offerBuiltin ? () => recommend(true) : undefined} />}
+      {suggestions.length === 0 && <div className="tm-empty-row">제안할 항목이 없습니다.</div>}
+      {analysis && analysis.skipped > 0 && (
+        <div style={{ fontSize: 11, color: '#A79F92', marginBottom: 4 }}>
+          {analysis.skipped}개 항목은 판단할 근거가 부족해 추천하지 않았어요.
         </div>
-      ))}
+      )}
+      {suggestions.map((s) => {
+        const recommended = recommendations[s.target];
+        const buttonClass = (category: string) =>
+          `tm-btn-small ${recommended?.category === category ? 'tm-btn-primary' : 'tm-btn-ghost'}`;
+        return (
+          <div
+            key={s.target}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid var(--tm-line)', flexWrap: 'wrap' }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tm-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {s.displayTarget} <span style={{ fontWeight: 500, color: '#A79F92' }}>· {s.timeLabel}</span>
+              </div>
+              {recommended && (
+                <div style={{ fontSize: 11, color: 'var(--tm-ink-4)' }}>
+                  <b>{recommended.categoryLabel} 추천</b>
+                  {recommended.reason && ` · ${recommended.reason}`}
+                </div>
+              )}
+            </div>
+            {(['productive', 'unproductive'] as const).map((category) => (
+              <button
+                key={category}
+                className={buttonClass(category)}
+                type="button"
+                aria-label={`${s.displayTarget} ${category === 'productive' ? '생산적' : '비생산적'}으로 등록`}
+                disabled={pending === s.target}
+                onClick={() => apply(s.target, category)}
+              >
+                {category === 'productive' ? '생산적' : '비생산적'}
+              </button>
+            ))}
+            <button
+              className="tm-btn-small tm-btn-ghost"
+              type="button"
+              aria-label={`${s.displayTarget} 제안 무시`}
+              disabled={pending === s.target}
+              onClick={() => dismiss(s.target)}
+            >
+              무시
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-export default function Rules({ data, onAdd, onUpdate, onDelete, onGetSuggestions, onApplySuggestion }: RulesProps) {
+export default function Rules({
+  data,
+  onAdd,
+  onUpdate,
+  onDelete,
+  onGetSuggestions,
+  onApplySuggestion,
+  external,
+  onGetAiSuggestions,
+}: RulesProps) {
   const [ruleType, setRuleType] = useState(TYPE_OPTIONS[0]);
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
   const [value, setValue] = useState('');
@@ -144,7 +223,12 @@ export default function Rules({ data, onAdd, onUpdate, onDelete, onGetSuggestion
 
   return (
     <div className="tm-page">
-      <RuleSuggestions onGetSuggestions={onGetSuggestions} onApplySuggestion={onApplySuggestion} />
+      <RuleSuggestions
+        external={external}
+        onGetSuggestions={onGetSuggestions}
+        onGetAiSuggestions={onGetAiSuggestions}
+        onApplySuggestion={onApplySuggestion}
+      />
 
       <div className="tm-card">
         <div className="tm-card-title" style={{ marginBottom: 13 }}>

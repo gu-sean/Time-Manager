@@ -1,4 +1,4 @@
-import type { CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, UpdateInfo } from './types';
+import type { AICoaching, AIModelList, AIRequestPreview, AIService, AIRuleSuggestionsResult, AISettingsInput, AITestResult, CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, UpdateInfo } from './types';
 
 declare global {
   interface Window {
@@ -40,6 +40,17 @@ declare global {
         check_update(): Promise<UpdateInfo>;
         install_update(assetUrl: string): Promise<InstallUpdateResult>;
         export_logs(): Promise<{ message: string }>;
+        save_ai_settings(provider: string, service: string, model: string, baseUrl: string): Promise<SettingsData>;
+        set_ai_api_key(service: string, apiKey: string, baseUrl: string): Promise<SettingsData>;
+        clear_ai_api_key(service: string, baseUrl: string): Promise<SettingsData>;
+        list_ai_models(service: string, baseUrl: string): Promise<AIModelList>;
+        test_ai_connection(): Promise<AITestResult>;
+        get_ai_rule_suggestions(requestId: string, builtin: boolean): Promise<AIRuleSuggestionsResult>;
+        get_ai_coaching(
+          scope: string, dateIso: string | null, refresh: boolean, requestId: string, builtin: boolean,
+        ): Promise<AICoaching>;
+        preview_ai_request(kind: string, scope: string, dateIso: string | null): Promise<AIRequestPreview>;
+        cancel_ai_request(requestId: string): Promise<void>;
       };
     };
   }
@@ -90,6 +101,8 @@ let mockInbox: InboxData = {
   ],
   searchActive: false,
   resultCount: null,
+  query: '',
+  category: null,
 };
 
 function hasPywebview(): boolean {
@@ -127,14 +140,19 @@ export async function sendFocusNotification(title: string, body: string): Promis
 export async function getInbox(query = '', category: string | null = null, dateIso?: string): Promise<InboxData> {
   if (hasPywebview()) return window.pywebview!.api.get_inbox(query, category, dateIso ?? null);
   if (!query && !category) return mockInbox;
-  return { ...mockInbox, searchActive: true, resultCount: mockInbox.records.length };
+  const records = mockInbox.records.filter((record) => !category || record.category === category);
+  return { ...mockInbox, records, searchActive: true, resultCount: records.length, query, category };
 }
 
 export async function reclassifyEvent(eventId: number, category: string): Promise<InboxData> {
   if (hasPywebview()) return window.pywebview!.api.reclassify_event(eventId, category);
   mockInbox = {
     ...mockInbox,
-    records: mockInbox.records.map((record) => (record.id === eventId ? { ...record, category } : record)),
+    records: mockInbox.records.map((record) =>
+      record.id === eventId
+        ? { ...record, category, categoryLabel: { productive: '생산적', unproductive: '비생산적' }[category] ?? '중립' }
+        : record,
+    ),
   };
   return mockInbox;
 }
@@ -329,6 +347,20 @@ export async function getReportRange(startIso: string, endIso: string): Promise<
   return { ...MOCK_REPORT, period: `${startIso}–${endIso}` };
 }
 
+function mockService(value: string, label: string, overrides: Partial<AIService>): AIService {
+  return {
+    value, label, help: '', editableUrl: false, keyRequired: false, keyPlaceholder: '',
+    suggestedModels: [], model: '', baseUrl: '', hasKey: false, ...overrides,
+  };
+}
+
+function updateMockService(service: string, changes: Partial<AIService>): void {
+  mockSettings = {
+    ...mockSettings,
+    aiServices: mockSettings.aiServices.map((s) => (s.value === service ? { ...s, ...changes } : s)),
+  };
+}
+
 let mockSettings: SettingsData = {
   appVersion: '1.1.0',
   dailyGoalMinutes: 180,
@@ -355,6 +387,17 @@ let mockSettings: SettingsData = {
   notificationStatus: 'Windows 알림을 사용할 수 있습니다. 표시되지 않으면 Windows 알림 설정을 확인하세요.',
   diagnosticInfo: '환경: v0.4.0 (dev)\n데이터: (mock)',
   diagnosticResults: '',
+  aiProvider: 'local',
+  aiProviderOptions: [
+    { value: 'local', label: '내장 분석 (무료 · PC에서만 처리)' },
+    { value: 'model', label: '개인 모델 (Claude · GPT · Ollama 등)' },
+  ],
+  aiService: 'claude',
+  aiServices: [
+    mockService('claude', 'Claude (Anthropic)', { keyRequired: true, model: 'claude-opus-5-5', baseUrl: 'https://api.anthropic.com' }),
+    mockService('openai', 'GPT (OpenAI)', { keyRequired: true, baseUrl: 'https://api.openai.com/v1' }),
+    mockService('ollama', 'Ollama', { editableUrl: true, baseUrl: 'http://localhost:11434/v1' }),
+  ],
 };
 
 export async function getSettings(): Promise<SettingsData> {
@@ -461,4 +504,88 @@ export function waitForApi(): Promise<void> {
     window.addEventListener('pywebviewready', onReady);
     setTimeout(resolve, 2000);
   });
+}
+
+export async function saveAiSettings(input: AISettingsInput): Promise<SettingsData> {
+  if (hasPywebview()) {
+    return window.pywebview!.api.save_ai_settings(input.provider, input.service, input.model, input.baseUrl);
+  }
+  mockSettings = { ...mockSettings, aiProvider: input.provider };
+  if (input.provider === 'model') {
+    mockSettings = { ...mockSettings, aiService: input.service };
+    updateMockService(input.service, { model: input.model, baseUrl: input.baseUrl });
+  }
+  return mockSettings;
+}
+
+export async function setAiApiKey(service: string, apiKey: string, baseUrl: string): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.set_ai_api_key(service, apiKey, baseUrl);
+  updateMockService(service, { hasKey: apiKey.trim().length > 0 });
+  return mockSettings;
+}
+
+export async function clearAiApiKey(service: string, baseUrl: string): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.clear_ai_api_key(service, baseUrl);
+  updateMockService(service, { hasKey: false });
+  return mockSettings;
+}
+
+export async function listAiModels(service: string, baseUrl: string): Promise<AIModelList> {
+  if (hasPywebview()) return window.pywebview!.api.list_ai_models(service, baseUrl);
+  return { models: ['example-model-small', 'example-model-large'], error: '' };
+}
+
+export async function testAiConnection(): Promise<AITestResult> {
+  if (hasPywebview()) return window.pywebview!.api.test_ai_connection();
+  return { ok: true, message: '연결에 성공했습니다.' };
+}
+
+export async function previewAiRequest(
+  kind: 'suggestions' | 'coaching',
+  scope: 'day' | 'week' = 'day',
+  dateIso: string | null = null,
+): Promise<AIRequestPreview> {
+  if (hasPywebview()) return window.pywebview!.api.preview_ai_request(kind, scope, dateIso);
+  return {
+    serviceLabel: 'Ollama', url: 'http://localhost:11434/v1/chat/completions', model: 'example-model',
+    instructions: '(예시 지침)', data: JSON.stringify({ targets: ['notion.exe', 'reddit.com'] }, null, 2), error: '',
+  };
+}
+
+export async function cancelAiRequest(requestId: string): Promise<void> {
+  if (hasPywebview()) await window.pywebview!.api.cancel_ai_request(requestId);
+}
+
+export async function getAiRuleSuggestions(requestId: string, builtin: boolean): Promise<AIRuleSuggestionsResult> {
+  if (hasPywebview()) return window.pywebview!.api.get_ai_rule_suggestions(requestId, builtin);
+  return {
+    items: [
+      { target: 'notion.exe', displayTarget: 'notion.exe', timeLabel: '1시간 20분', category: 'productive', categoryLabel: '생산적', reason: '문서·업무 정리 도구' },
+      { target: 'reddit.com', displayTarget: 'reddit.com', timeLabel: '35분', category: 'unproductive', categoryLabel: '비생산적', reason: '소셜 피드 사이트' },
+    ],
+    skipped: 1,
+    source: '내장 분석',
+    error: '',
+    canFallback: false,
+  };
+}
+
+export async function getAiCoaching(
+  scope: 'day' | 'week',
+  dateIso: string | null,
+  refresh: boolean,
+  requestId: string,
+  builtin: boolean,
+): Promise<AICoaching> {
+  if (hasPywebview()) return window.pywebview!.api.get_ai_coaching(scope, dateIso, refresh, requestId, builtin);
+  return {
+    headline: '오후 집중이 가장 좋았어요',
+    insights: ['14~16시 생산 시간이 가장 길었어요.', 'YouTube가 하루 45분으로 가장 큰 방해 요소였어요.'],
+    actions: ['오후 집중 시간대에 알림을 꺼 보세요.'],
+    scopeLabel: scope === 'week' ? '최근 7일' : '오늘',
+    source: '내장 분석',
+    generated: false,
+    canFallback: false,
+    error: '',
+  };
 }

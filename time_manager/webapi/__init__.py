@@ -6,6 +6,7 @@ from time_manager.settings import SettingsStore
 from time_manager.storage import ActivityStore
 from time_manager.tracker import ActivityTracker
 
+from .ai import AIMixin
 from .backup import BackupMixin
 from .dashboard import DashboardMixin
 from .inbox import InboxMixin
@@ -19,7 +20,15 @@ __all__ = ["WebApi"]
 
 
 class WebApi(
-    DashboardMixin, InboxMixin, ReviewMixin, RulesMixin, ReportMixin, SettingsMixin, BackupMixin, WeeklySummaryMixin
+    DashboardMixin,
+    InboxMixin,
+    ReviewMixin,
+    RulesMixin,
+    ReportMixin,
+    SettingsMixin,
+    BackupMixin,
+    WeeklySummaryMixin,
+    AIMixin,
 ):
     def __init__(
         self,

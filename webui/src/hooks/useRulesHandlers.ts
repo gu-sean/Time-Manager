@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { addRule, applyRuleSuggestion, deleteRule, getRuleSuggestions, updateRule } from '../api';
-import type { RuleSuggestion, RulesData } from '../types';
+import { addRule, applyRuleSuggestion, deleteRule, getAiRuleSuggestions, getRuleSuggestions, updateRule } from '../api';
+import type { AIRuleSuggestionsResult, RuleSuggestion, RulesData } from '../types';
 
 export function useRulesHandlers(
   setRules: (data: RulesData) => void,
@@ -37,7 +37,15 @@ export function useRulesHandlers(
     return result;
   }, []);
 
+  const handleGetAiSuggestions = useCallback(
+    async (requestId: string, builtin: boolean): Promise<AIRuleSuggestionsResult> => {
+      return getAiRuleSuggestions(requestId, builtin);
+    },
+    [],
+  );
+
   return {
+    handleGetAiSuggestions,
     handleAddRule,
     handleUpdateRule,
     handleDeleteRule,

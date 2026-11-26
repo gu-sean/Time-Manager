@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterator
 
+from time_manager.local_model import Signature
 from time_manager.models import Category, ClassifiedActivity
 
 
@@ -441,6 +442,71 @@ class ActivityStore:
                 (start, end, Category.NEUTRAL.value, limit),
             ).fetchall()
         return [BreakdownRow(row[0], Category.NEUTRAL, int(row[1])) for row in rows]
+
+    def app_domain_totals(
+        self, start_day: date, end_day: date, *, unmatched_only: bool = False
+    ) -> list[BreakdownRow]:
+        """Totals grouped by domain (when a URL exists) or app name — never by window title.
+
+        Used for AI features so that window titles and URL paths stay on the device.
+        """
+        from time_manager.rules import _domain_from_url
+
+        start, end = self._period_bounds(start_day, end_day)
+        sql = """
+            SELECT app_name, COALESCE(url, ''), category, COALESCE(SUM(seconds), 0)
+            FROM activity_events
+            WHERE started_at >= ? AND started_at < ?
+                AND deleted_at IS NULL
+        """
+        params: list[object] = [start, end]
+        if unmatched_only:
+            sql += " AND category = ? AND reason = 'no matching rule'"
+            params.append(Category.NEUTRAL.value)
+        sql += " GROUP BY app_name, url, category"
+        with self._connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        totals: dict[tuple[str, Category], int] = {}
+        for app_name, url, category, seconds in rows:
+            target = _domain_from_url(url) or (app_name or "").strip()
+            if not target:
+                continue
+            key = (target, Category(category))
+            totals[key] = totals.get(key, 0) + int(seconds)
+        ranked = sorted(totals.items(), key=lambda item: item[1], reverse=True)
+        return [BreakdownRow(target, category, seconds) for (target, category), seconds in ranked]
+
+    def first_activity_day(self) -> date | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT MIN(started_at) FROM activity_events WHERE deleted_at IS NULL"
+            ).fetchone()
+        return date.fromisoformat(row[0][:10]) if row and row[0] else None
+
+    def activity_signatures(
+        self, start_day: date | None = None, end_day: date | None = None
+    ) -> list[Signature]:
+        """Distinct activity combinations for the on-device classifier.
+
+        Includes window titles, so the result must never leave this PC.
+        """
+        sql = """
+            SELECT app_name, COALESCE(url, ''), window_title, category, reason, COALESCE(SUM(seconds), 0)
+            FROM activity_events
+            WHERE deleted_at IS NULL
+        """
+        params: list[object] = []
+        if start_day is not None and end_day is not None:
+            start, end = self._period_bounds(start_day, end_day)
+            sql += " AND started_at >= ? AND started_at < ?"
+            params = [start, end]
+        sql += " GROUP BY app_name, url, window_title, category, reason"
+        with self._connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [
+            Signature(row[0], row[1], row[2], Category(row[3]), row[4], int(row[5]))
+            for row in rows
+        ]
 
     def top_targets_for_range(self, days: int, limit: int = 10) -> list[BreakdownRow]:
         end_day = date.today()

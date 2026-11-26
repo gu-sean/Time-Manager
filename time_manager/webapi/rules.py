@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 from time_manager.formatting import _format_seconds, _truncate
@@ -12,8 +13,16 @@ from time_manager.rules import (
     rule_key_for_selection,
     update_rule_value,
 )
+from time_manager.storage import BreakdownRow
 
 from ._shared import WebApiBase
+
+_MIN_SUGGESTION_SECONDS = 60
+# When the URL could not be read, activity falls back to the browser itself.
+# A rule for it would classify all browsing at once, so it is never suggested.
+_BROWSERS = frozenset(
+    f"{name}.exe" for name in ("chrome", "msedge", "firefox", "whale", "brave", "opera", "vivaldi", "iexplore")
+)
 
 
 class RulesMixin(WebApiBase):
@@ -75,17 +84,28 @@ class RulesMixin(WebApiBase):
         self.tracker.classifier = remove_rule_value(self.rules_path, key, value)
         return self.get_rules()
 
-    def get_rule_suggestions(self, days: int = 14, limit: int = 5) -> list[dict[str, Any]]:
-        candidates = self.store.neutral_candidates_for_range(days, limit=limit)
+    def get_rule_suggestions(self, days: int = 14, limit: int = 12) -> list[dict[str, Any]]:
         return [
             {
                 "target": row.label,
                 "timeLabel": _format_seconds(row.seconds),
                 "displayTarget": _truncate(row.label, 60),
             }
-            for row in candidates
-            if row.seconds > 0
+            for row in self._unclassified_targets(days, limit)
         ]
+
+    def _unclassified_targets(self, days: int, limit: int) -> list[BreakdownRow]:
+        """Apps and domains with no rule yet. Shared by the list and its recommendations."""
+        end_day = date.today()
+        start_day = end_day - timedelta(days=max(1, int(days)) - 1)
+        known = {value.lower() for values in load_rules(self.rules_path).values() for value in values}
+        return [
+            row
+            for row in self.store.app_domain_totals(start_day, end_day, unmatched_only=True)
+            if row.seconds >= _MIN_SUGGESTION_SECONDS
+            and row.label.lower() not in known
+            and row.label.lower() not in _BROWSERS
+        ][: max(1, int(limit))]
 
     def apply_rule_suggestion(self, target: str, category: str) -> dict[str, Any]:
         try:

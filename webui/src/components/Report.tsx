@@ -19,7 +19,7 @@ function ScoreRing({ pct }: { pct: number }) {
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
-          background: `conic-gradient(#BA6A49 0% ${pct}%, #EEEAE1 ${pct}% 100%)`,
+          background: `conic-gradient(#BA6A49 0% ${pct}%, var(--tm-ring-track) ${pct}% 100%)`,
         }}
       />
       <div className="tm-score-ring-center">
@@ -172,7 +172,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: '#8A8377', marginTop: 8 }}>{data.weekdayText}</div>
+          <div style={{ fontSize: 11, color: 'var(--tm-ink-4)', marginTop: 8 }}>{data.weekdayText}</div>
         </div>
       </div>
 
@@ -197,7 +197,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
                   <div
                     key={i}
                     className="tm-heatmap-cell"
-                    style={{ background: intensity < 0.07 ? '#F0EEE7' : `rgba(186,106,73,${0.16 + intensity * 0.66})` }}
+                    style={{ background: intensity < 0.07 ? 'var(--tm-cell-empty)' : `rgba(186,106,73,${0.16 + intensity * 0.66})` }}
                   />
                 ))}
               </div>
@@ -227,10 +227,10 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
           {data.daily.length === 0 && <div className="tm-empty-row">기록된 데이터가 없습니다.</div>}
           {pageRows.map((row) => (
             <div className="tm-daily-table-row" key={row.day}>
-              <span style={{ fontWeight: 700, color: '#3B362E' }}>{row.day}</span>
-              <span style={{ color: '#6E6759' }}>{row.total}</span>
+              <span style={{ fontWeight: 700, color: 'var(--tm-ink)' }}>{row.day}</span>
+              <span style={{ color: 'var(--tm-ink-3)' }}>{row.total}</span>
               <span style={{ fontWeight: 700, color: '#6F9A7C' }}>{row.prod}</span>
-              <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#2F2B25' }}>{row.score}</span>
+              <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: 'var(--tm-ink)' }}>{row.score}</span>
             </div>
           ))}
           {data.daily.length > DAILY_PAGE_SIZE && (
@@ -266,8 +266,8 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
           {data.topActivities.map((row) => (
             <div className="tm-top-activity-row" key={row.name}>
               <div className="tm-top-activity-head">
-                <span style={{ fontWeight: 700, color: '#3B362E' }}>{row.name}</span>
-                <span style={{ fontWeight: 700, color: '#6E6759' }}>{row.time}</span>
+                <span style={{ fontWeight: 700, color: 'var(--tm-ink)' }}>{row.name}</span>
+                <span style={{ fontWeight: 700, color: 'var(--tm-ink-3)' }}>{row.time}</span>
               </div>
               <div className="tm-top-activity-bar-track">
                 <div className="tm-top-activity-bar-fill" style={{ width: `${row.ratio * 100}%`, background: row.color }} />

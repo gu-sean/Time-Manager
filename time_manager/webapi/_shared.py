@@ -23,6 +23,8 @@ class WebApiBase:
     settings_store: SettingsStore
     rules_path: Path
 
+    def _ai_settings_payload(self) -> dict[str, object]: ...
+
 _CATEGORY_LABELS = {
     Category.PRODUCTIVE: "생산적",
     Category.UNPRODUCTIVE: "비생산적",
