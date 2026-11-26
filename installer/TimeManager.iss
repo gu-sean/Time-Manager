@@ -5,7 +5,7 @@
 ; AppVersion 은 time_manager/__version__ 과 일치시킬 것
 
 #define AppName "Time Manager"
-#define AppVersion "1.2.1"
+#define AppVersion "1.3.0"
 #define AppExe "TimeManager.exe"
 
 [Setup]
@@ -24,6 +24,9 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
+; 창을 닫아도 트레이에서 실행 중일 수 있음 → 설치·제거 전에 종료하라고 안내
+; - time_manager/single_instance.py 의 INSTALLER_MUTEX 와 같아야 함
+AppMutex=TimeManagerAppRunning
 ; 사용자 데이터(%APPDATA%\TimeManager)는 제거할 때 의도적으로 남김
 
 [Languages]
@@ -41,7 +44,8 @@ Source: "..\dist\TimeManager.exe"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{group}\Time Manager"; Filename: "{app}\{#AppExe}"
 Name: "{group}\{cm:UninstallProgram,Time Manager}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Time Manager"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
-Name: "{userstartup}\Time Manager"; Filename: "{app}\{#AppExe}"; Tasks: startup
+; 자동 실행은 창 없이 트레이에서 시작
+Name: "{userstartup}\Time Manager"; Filename: "{app}\{#AppExe}"; Parameters: "--tray"; Tasks: startup
 
 [Run]
 ; 탐색기를 거쳐 실행: 새 앱은 설치 프로그램이 아니라 바탕 화면의 환경을 받음

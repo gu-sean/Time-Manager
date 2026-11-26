@@ -47,7 +47,7 @@ a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=collect_dynamic_libs("uiautomation"),
-    datas=[("rules.json", "."), ("webui/dist", "webui/dist")],
+    datas=[("rules.json", "."), ("webui/dist", "webui/dist"), ("assets/icon.ico", "assets")],
     hiddenimports=["pystray._win32", "PIL._tkinter_finder", "winotify"],
     hookspath=[],
     hooksconfig={},

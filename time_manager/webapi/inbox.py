@@ -16,6 +16,8 @@ from time_manager.rules import (
 
 from ._shared import WebApiBase, _CATEGORY_LABELS, _parse_category, _parse_day
 
+_SEARCH_LIMIT = 500
+
 
 def _describe_activity(title: str, url: str | None, app_name: str) -> dict[str, str]:
     """첫 줄은 한 일(제목 우선), 둘째 줄은 장소."""
@@ -37,11 +39,14 @@ class InboxMixin(WebApiBase):
         wanted = _parse_category(category)
         category = wanted.value if wanted else None
         searching = bool(query.strip()) or bool(category)
+        truncated = False
         if searching:
-            rows = self.store.search_events(query=query, category=wanted, days=30, limit=200)
+            rows = self.store.search_events(query=query, category=wanted, days=30, limit=_SEARCH_LIMIT + 1)
+            truncated = len(rows) > _SEARCH_LIMIT
+            rows = rows[:_SEARCH_LIMIT]
         else:
             selected_day = _parse_day(date_iso)
-            rows = self.store.recent_for_day(selected_day, limit=30)
+            rows = self.store.recent_for_day(selected_day, limit=None)  # 화면에서 쪽으로 나눔
         rules = load_rules(self.rules_path)
         classifier = RuleClassifier.from_dict(rules)
         records = [
@@ -63,6 +68,7 @@ class InboxMixin(WebApiBase):
             "query": query,
             "category": category,
             "resultCount": len(records) if searching else None,
+            "truncated": truncated,
         }
 
     def reclassify_event(self, event_id: int, category: str) -> dict[str, Any]:

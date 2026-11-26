@@ -1,4 +1,4 @@
-import type { PresetItem, AICoaching, AIModelList, AIRequestPreview, AskResult, CoachingHistoryEntry, AIService, AIRuleSuggestionsResult, AISettingsInput, AITestResult, CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, UpdateInfo } from './types';
+import type { PresetItem, AICoaching, AIModelList, AIRequestPreview, AskResult, CoachingHistoryEntry, AIService, AIRuleSuggestionsResult, AISettingsInput, AITestResult, CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, TrackingOptions, UpdateInfo, RuleReapplyPreview } from './types';
 
 declare global {
   interface Window {
@@ -16,6 +16,8 @@ declare global {
         restore_deleted_event(): Promise<InboxData>;
         get_review(dateIso?: string | null): Promise<ReviewData>;
         get_rules(): Promise<RulesData>;
+        preview_rule_reapply(): Promise<RuleReapplyPreview>;
+        reapply_rules(): Promise<{ message: string; error: string }>;
         add_rule(ruleType: string, category: string, value: string): Promise<RulesData>;
         update_rule(oldKey: string, oldValue: string, ruleType: string, category: string, value: string): Promise<RulesData>;
         delete_rule(key: string, value: string): Promise<RulesData>;
@@ -27,6 +29,7 @@ declare global {
         save_settings(payload: Record<string, unknown>): Promise<SettingsData>;
         toggle_auto_backup(enabled: boolean): Promise<SettingsData>;
         toggle_startup(enabled: boolean): Promise<SettingsData>;
+        save_tracking_options(changes: TrackingOptions): Promise<SettingsData>;
         set_theme(theme: 'light' | 'dark'): Promise<SettingsData>;
         set_profile(profile: string): Promise<SettingsData>;
         apply_preset(): Promise<SettingsData>;
@@ -73,6 +76,7 @@ let mockDashboard: DashboardData = {
   dateLabel: '오늘',
   viewingToday: true,
   tracking: true,
+  goal: { value: '4시간 20분 / 3시간', pct: 144, ratio: 1, achieved: true, remaining: '' },
   stats: [
     { key: 'total', label: '총 사용 시간', value: '6h 15m', delta: '▲ 1h 20m (어제 대비)' },
     { key: 'productive', label: '생산적 시간', value: '4h 20m', delta: '▲ 1h 10m (어제 대비)' },
@@ -378,7 +382,7 @@ function updateMockService(service: string, changes: Partial<AIService>): void {
 }
 
 let mockSettings: SettingsData = {
-  appVersion: '1.2.1',
+  appVersion: '1.3.0',
   dailyGoalMinutes: 180,
   weeklyGoalMinutes: 900,
   unproductiveLimitMinutes: 120,
@@ -395,6 +399,10 @@ let mockSettings: SettingsData = {
   notificationsEnabled: true,
   autoBackupEnabled: true,
   startupEnabled: false,
+  idleMinutes: 5,
+  recordMedia: true,
+  trimIdleTime: false,
+  closeToTray: true,
   storeDomainOnly: true,
   storeWindowTitles: true,
   retentionDays: 0,
@@ -436,6 +444,28 @@ export async function toggleAutoBackup(enabled: boolean): Promise<SettingsData> 
 export async function toggleStartup(enabled: boolean): Promise<SettingsData> {
   if (hasPywebview()) return window.pywebview!.api.toggle_startup(enabled);
   mockSettings = { ...mockSettings, startupEnabled: enabled };
+  return mockSettings;
+}
+
+export async function previewRuleReapply(): Promise<RuleReapplyPreview> {
+  if (hasPywebview()) return window.pywebview!.api.preview_rule_reapply();
+  return {
+    count: 12,
+    timeLabel: '1시간 5분',
+    items: [{ target: 'notion.so', from: '중립', to: '생산적', count: 12, timeLabel: '1시간 5분' }],
+    more: 0,
+  };
+}
+
+export async function reapplyRules(): Promise<{ message: string; error: string }> {
+  if (hasPywebview()) return window.pywebview!.api.reapply_rules();
+  return { message: '지난 기록 12건의 분류를 바꿨어요.', error: '' };
+}
+
+export async function saveTrackingOptions(changes: TrackingOptions): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.save_tracking_options(changes);
+  const { idleMinutes, ...toggles } = changes;
+  mockSettings = { ...mockSettings, ...toggles, ...(typeof idleMinutes === 'number' ? { idleMinutes } : {}) };
   return mockSettings;
 }
 

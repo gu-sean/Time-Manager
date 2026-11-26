@@ -135,6 +135,17 @@ class BackupManager:
         except sqlite3.Error as exc:
             raise ValueError(f"활동 기록을 되돌리지 못했습니다 ({exc}).") from exc
 
+    def safety_backup(self, label: str, keep: int = 3) -> Path:
+        """기록을 한꺼번에 바꾸기 전 상태. 종류별 최근 ``keep`` 개 유지."""
+        output = self.backup_dir / f"pre-{label}-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.tmbak"
+        self.export(output)
+        for old in sorted(self.backup_dir.glob(f"pre-{label}-*.tmbak"))[:-keep]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+        return output
+
     def auto_backup(self, today: date | None = None, keep: int = 4) -> Path:
         stamp = (today or date.today()).isoformat()
         output = self.backup_dir / f"auto-{stamp}.tmbak"

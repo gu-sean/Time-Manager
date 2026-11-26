@@ -6,10 +6,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 from time_manager.local_model import Signature
-from time_manager.models import Category, ClassifiedActivity
+from time_manager.models import NO_RULE_REASON, ActiveTarget, Category, ClassifiedActivity
 
 
 @dataclass(frozen=True)
@@ -158,6 +158,21 @@ class EventTarget:
     category: Category
 
 
+# 사용자가 직접 바꾼 분류
+_MANUAL_REASON = "manual correction"
+
+
+@dataclass(frozen=True)
+class Reclassification:
+    id: int
+    app_name: str
+    url: str | None
+    seconds: int
+    old: Category
+    new: Category
+    reason: str
+
+
 @dataclass(frozen=True)
 class ActivityEvent:
     id: int
@@ -219,6 +234,9 @@ class ActivityStore:
             return False
 
         event_id, started_at, existing_seconds, category, app_name, title, url, reason = row
+        # 날짜가 바뀌면 새 행: 일별 집계는 시작 날짜 기준
+        if str(started_at)[:10] != now[:10]:
+            return False
         target = activity.target
         if (
             category != activity.category.value
@@ -258,6 +276,24 @@ class ActivityStore:
         gap_seconds = abs((current - expected_end).total_seconds())
         return gap_seconds <= self.merge_gap_seconds
 
+    def remove_recent_seconds(self, seconds: int) -> None:
+        """가장 최근 기록부터 ``seconds`` 만큼 뺌 (자리를 비운 것으로 확인된 시간)."""
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT id, seconds FROM activity_events WHERE deleted_at IS NULL"
+                " ORDER BY started_at DESC, id DESC LIMIT ?",
+                (max(1, seconds),),  # 행마다 1초 이상
+            ).fetchall()
+            for event_id, recorded in rows:
+                if seconds <= 0:
+                    break
+                if recorded <= seconds:
+                    # 삭제 목록에 넣지 않음: 사용자가 지운 기록의 "복원" 대상이 아님
+                    conn.execute("DELETE FROM activity_events WHERE id = ?", (event_id,))
+                else:
+                    conn.execute("UPDATE activity_events SET seconds = seconds - ? WHERE id = ?", (seconds, event_id))
+                seconds -= recorded
+
     def total_productive_seconds(self) -> int:
         with self._connection() as conn:
             row = conn.execute(
@@ -289,7 +325,7 @@ class ActivityStore:
                 SELECT id, started_at, seconds, category, app_name, window_title, url, reason
                 FROM activity_events
                 WHERE deleted_at IS NULL
-                ORDER BY id DESC
+                ORDER BY started_at DESC, id DESC
                 LIMIT ?
                 """,
                 (limit,),
@@ -308,7 +344,8 @@ class ActivityStore:
             for row in rows
         ]
 
-    def recent_for_day(self, day: date, limit: int = 30) -> list[RecentRow]:
+    def recent_for_day(self, day: date, limit: int | None = 30) -> list[RecentRow]:
+        """그날의 기록, 최신순. ``limit`` 이 None 이면 전부."""
         start, end = self._day_bounds(day)
         with self._connection() as conn:
             rows = conn.execute(
@@ -317,10 +354,10 @@ class ActivityStore:
                 FROM activity_events
                 WHERE started_at >= ? AND started_at < ?
                     AND deleted_at IS NULL
-                ORDER BY id DESC
+                ORDER BY started_at DESC, id DESC
                 LIMIT ?
                 """,
-                (start, end, limit),
+                (start, end, -1 if limit is None else limit),  # SQLite: 음수는 제한 없음
             ).fetchall()
         return [
             RecentRow(
@@ -411,56 +448,18 @@ class ActivityStore:
         ]
 
     def top_targets_for_day(self, day: date, limit: int = 10) -> list[BreakdownRow]:
-        start, end = self._day_bounds(day)
-        with self._connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT
-                    COALESCE(NULLIF(url, ''), NULLIF(window_title, ''), app_name) AS target,
-                    category,
-                    COALESCE(SUM(seconds), 0) AS total_seconds
-                FROM activity_events
-                WHERE started_at >= ? AND started_at < ?
-                    AND deleted_at IS NULL
-                GROUP BY target, category
-                ORDER BY total_seconds DESC
-                LIMIT ?
-                """,
-                (start, end, limit),
-            ).fetchall()
-        return [BreakdownRow(row[0], Category(row[1]), int(row[2])) for row in rows]
+        return self.top_targets_for_period(day, day, limit)
 
     def neutral_candidates_for_day(self, day: date, limit: int = 10) -> list[BreakdownRow]:
-        start, end = self._day_bounds(day)
-        return self._neutral_candidates_between(start, end, limit)
+        return self._neutral_candidates_between(day, day, limit)
 
     def neutral_candidates_for_range(self, days: int, limit: int = 30) -> list[BreakdownRow]:
         end_day = date.today()
         start_day = end_day - timedelta(days=days - 1)
-        start, _ = self._day_bounds(start_day)
-        _, end = self._day_bounds(end_day)
-        return self._neutral_candidates_between(start, end, limit)
+        return self._neutral_candidates_between(start_day, end_day, limit)
 
-    def _neutral_candidates_between(self, start: str, end: str, limit: int) -> list[BreakdownRow]:
-        with self._connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT
-                    COALESCE(NULLIF(url, ''), NULLIF(window_title, ''), app_name) AS target,
-                    COALESCE(SUM(seconds), 0) AS total_seconds
-                FROM activity_events
-                WHERE started_at >= ?
-                    AND started_at < ?
-                    AND deleted_at IS NULL
-                    AND category = ?
-                    AND reason = 'no matching rule'
-                GROUP BY target
-                ORDER BY total_seconds DESC
-                LIMIT ?
-                """,
-                (start, end, Category.NEUTRAL.value, limit),
-            ).fetchall()
-        return [BreakdownRow(row[0], Category.NEUTRAL, int(row[1])) for row in rows]
+    def _neutral_candidates_between(self, start_day: date, end_day: date, limit: int) -> list[BreakdownRow]:
+        return self.app_domain_totals(start_day, end_day, unmatched_only=True)[:limit]
 
     def app_domain_totals(
         self, start_day: date, end_day: date, *, unmatched_only: bool = False
@@ -588,24 +587,8 @@ class ActivityStore:
         return self.top_targets_for_period(start_day, end_day, limit)
 
     def top_targets_for_period(self, start_day: date, end_day: date, limit: int = 10) -> list[BreakdownRow]:
-        start, end = self._period_bounds(start_day, end_day)
-        with self._connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT
-                    COALESCE(NULLIF(url, ''), NULLIF(window_title, ''), app_name) AS target,
-                    category,
-                    COALESCE(SUM(seconds), 0) AS total_seconds
-                FROM activity_events
-                WHERE started_at >= ? AND started_at < ?
-                    AND deleted_at IS NULL
-                GROUP BY target, category
-                ORDER BY total_seconds DESC
-                LIMIT ?
-                """,
-                (start, end, limit),
-            ).fetchall()
-        return [BreakdownRow(row[0], Category(row[1]), int(row[2])) for row in rows]
+        """많이 쓴 대상: 같은 사이트의 페이지, 같은 앱의 창은 하나로 묶음."""
+        return self.app_domain_totals(start_day, end_day)[:limit]
 
     def top_targets_between(
         self,
@@ -762,7 +745,7 @@ class ActivityStore:
             )
         if unfinished:
             same_day = current_day - timedelta(days=7)
-            previous += self._productive_seconds_before(datetime.combine(same_day, now.time()))
+            previous += self.category_totals_before(datetime.combine(same_day, now.time()))[Category.PRODUCTIVE]
 
         threshold = daily_goal_minutes * 60
         return WeeklyProgress(
@@ -772,24 +755,24 @@ class ActivityStore:
             weekly_goal_minutes=weekly_goal_minutes,
         )
 
-    def _productive_seconds_before(self, cutoff: datetime) -> int:
-        """``cutoff`` 날짜에 시작한 생산 시간 중 ``cutoff`` 시각 전까지의 합."""
+    def category_totals_before(self, cutoff: datetime) -> dict[Category, int]:
+        """``cutoff`` 날짜의 기록 중 ``cutoff`` 시각 전까지의 분류별 합."""
         start, end = self._day_bounds(cutoff.date())
         with self._connection() as conn:
             rows = conn.execute(
                 """
-                SELECT started_at, seconds
+                SELECT started_at, seconds, category
                 FROM activity_events
                 WHERE started_at >= ? AND started_at < ?
-                    AND category = ? AND deleted_at IS NULL
+                    AND deleted_at IS NULL
                 """,
-                (start, end, Category.PRODUCTIVE.value),
+                (start, end),
             ).fetchall()
-        total = 0
-        for started_at, seconds in rows:
+        totals = {category: 0 for category in Category}
+        for started_at, seconds, category in rows:
             started = datetime.fromisoformat(started_at).replace(tzinfo=None)  # 기록된 벽시계 시각
-            total += min(int(seconds), max(0, int((cutoff - started).total_seconds())))
-        return total
+            totals[Category(category)] += min(int(seconds), max(0, int((cutoff - started).total_seconds())))
+        return totals
 
     def get_event(self, event_id: int) -> EventTarget | None:
         with self._connection() as conn:
@@ -801,6 +784,46 @@ class ActivityStore:
             return None
         return EventTarget(str(row[0] or ""), str(row[1] or ""), row[2], Category(row[3]))
 
+    def reclassification_changes(
+        self, classify: Callable[[ActiveTarget], ClassifiedActivity]
+    ) -> list[Reclassification]:
+        """지금 규칙을 지난 기록에 적용하면 분류가 달라지는 기록.
+
+        - 직접 바꾼 분류와 삭제한 기록은 제외
+        - 맞는 규칙이 없으면 그대로 둠: 창 제목을 저장하지 않은 기록은 제목 규칙으로 다시 판단할 수 없음
+        """
+        with self._connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, app_name, window_title, url, category, seconds
+                FROM activity_events
+                WHERE deleted_at IS NULL AND reason != ?
+                """,
+                (_MANUAL_REASON,),
+            ).fetchall()
+        results: dict[tuple[str, str, str | None], ClassifiedActivity] = {}
+        changes = []
+        for event_id, app_name, title, url, category, seconds in rows:
+            key = (app_name or "", title or "", url)
+            if key not in results:
+                results[key] = classify(ActiveTarget(*key))
+            result = results[key]
+            if result.reason == NO_RULE_REASON or result.category.value == category:
+                continue
+            changes.append(
+                Reclassification(int(event_id), key[0], url, int(seconds), Category(category), result.category, result.reason)
+            )
+        return changes
+
+    def apply_reclassification(self, changes: list[Reclassification]) -> int:
+        with self._connection() as conn:
+            cursor = conn.executemany(
+                "UPDATE activity_events SET category = ?, reason = ?"
+                " WHERE id = ? AND deleted_at IS NULL AND reason != ?",
+                [(item.new.value, item.reason, item.id, _MANUAL_REASON) for item in changes],
+            )
+        return max(0, cursor.rowcount)
+
     def reclassify_event(self, event_id: int, category: Category) -> None:
         with self._connection() as conn:
             conn.execute(
@@ -809,7 +832,7 @@ class ActivityStore:
                 SET category = ?, reason = ?
                 WHERE id = ? AND deleted_at IS NULL
                 """,
-                (category.value, "manual correction", event_id),
+                (category.value, _MANUAL_REASON, event_id),
             )
 
     def soft_delete_event(self, event_id: int) -> None:
@@ -949,7 +972,7 @@ class ActivityStore:
         rows = [(hour, category, seconds) for _, hour, category, seconds, _, _ in self._clock_hour_slices(start_day, end_day)]
         by_hour = {hour: {category: 0 for category in Category} for hour in range(24)}
         for hour, category, seconds in rows:
-            by_hour[int(hour)][Category(category)] = int(seconds)
+            by_hour[int(hour)][Category(category)] += int(seconds)  # 같은 시각의 기록이 여러 개
         return [
             HourSummary(
                 hour=hour,
@@ -1113,6 +1136,7 @@ class ActivityStore:
             if "deleted_at" not in columns:
                 conn.execute("ALTER TABLE activity_events ADD COLUMN deleted_at TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_started_at ON activity_events(started_at)")
+            _split_rows_at_midnight(conn)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS coaching_history (
@@ -1144,6 +1168,45 @@ class ActivityStore:
         start, _ = self._day_bounds(start_day)
         _, end = self._day_bounds(end_day)
         return start, end
+
+
+def _split_rows_at_midnight(conn: sqlite3.Connection) -> None:
+    """자정을 넘긴 행을 날짜별 행으로 나눔 (합계는 그대로).
+
+    - 이전 버전이 저장한 기록과 복원한 백업용. 여러 번 실행해도 결과가 같음
+    """
+    rows = conn.execute(
+        """
+        SELECT id, started_at, seconds, category, app_name, window_title, url, reason, deleted_at
+        FROM activity_events
+        WHERE CAST(SUBSTR(started_at, 12, 2) AS INTEGER) * 3600
+            + CAST(SUBSTR(started_at, 15, 2) AS INTEGER) * 60
+            + CAST(SUBSTR(started_at, 18, 2) AS INTEGER)
+            + seconds > 86400
+        """
+    ).fetchall()
+    for event_id, started_at, seconds, *copied, deleted_at in rows:
+        try:
+            moment = datetime.fromisoformat(started_at)
+        except ValueError:
+            continue
+        parts: list[tuple[datetime, int]] = []
+        remaining = int(seconds)
+        while remaining > 0:
+            midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            part = min(remaining, int((midnight - moment).total_seconds()))
+            parts.append((moment, part))
+            remaining -= part
+            moment = midnight
+        conn.execute("UPDATE activity_events SET seconds = ? WHERE id = ?", (parts[0][1], event_id))
+        conn.executemany(
+            """
+            INSERT INTO activity_events
+                (started_at, seconds, category, app_name, window_title, url, reason, deleted_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [(at.isoformat(timespec="seconds"), part, *copied, deleted_at) for at, part in parts[1:]],
+        )
 
 
 def _split_by_hour(started_at: str, seconds: int) -> Iterator[tuple[date, int, int]]:

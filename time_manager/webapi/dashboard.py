@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from time_manager.formatting import _display_label, _format_seconds, _truncate
@@ -41,7 +41,14 @@ class DashboardMixin(WebApiBase):
         selected_day = _parse_day(date_iso)
         viewing_today = selected_day == today
         totals = _day_totals(self.store, selected_day)
-        yesterday_totals = _day_totals(self.store, selected_day - timedelta(days=1))
+        previous_day = selected_day - timedelta(days=1)
+        if viewing_today:
+            # 끝나지 않은 오늘은 어제의 같은 시각까지와 비교
+            basis = "어제 같은 시각"
+            yesterday_totals = self.store.category_totals_before(datetime.combine(previous_day, datetime.now().time()))
+        else:
+            basis = "전날"
+            yesterday_totals = _day_totals(self.store, previous_day)
         total_seconds = sum(totals.values())
         yesterday_total = sum(yesterday_totals.values())
         score = _productivity_score(totals)
@@ -52,7 +59,7 @@ class DashboardMixin(WebApiBase):
                 "key": "total",
                 "label": "총 사용 시간",
                 "value": _format_seconds(total_seconds),
-                "delta": _delta_text(total_seconds - yesterday_total),
+                "delta": _delta_text(total_seconds - yesterday_total, basis=basis),
             }
         ]
         for category in (Category.PRODUCTIVE, Category.UNPRODUCTIVE, Category.NEUTRAL):
@@ -61,7 +68,7 @@ class DashboardMixin(WebApiBase):
                     "key": category.value,
                     "label": f"{_CATEGORY_LABELS[category]} 시간",
                     "value": _format_seconds(totals[category]),
-                    "delta": _delta_text(totals[category] - yesterday_totals[category]),
+                    "delta": _delta_text(totals[category] - yesterday_totals[category], basis=basis),
                 }
             )
         stats.append(
@@ -69,7 +76,7 @@ class DashboardMixin(WebApiBase):
                 "key": "score",
                 "label": "생산성 점수",
                 "value": f"{score}%",
-                "delta": _delta_text(score - yesterday_score, unit="점"),
+                "delta": _delta_text(score - yesterday_score, basis=basis, unit="점"),
             }
         )
 
@@ -113,6 +120,15 @@ class DashboardMixin(WebApiBase):
         ]
 
         current_activity = self._current_activity_payload()
+        goal_seconds = max(60, self.settings.daily_goal_minutes * 60)
+        productive = totals[Category.PRODUCTIVE]
+        goal = {
+            "value": f"{_format_seconds(productive) if productive else '0분'} / {_format_seconds(goal_seconds)}",
+            "pct": productive * 100 // goal_seconds,  # 다 채우기 전에 100% 로 보이지 않게 내림
+            "ratio": min(1.0, productive / goal_seconds),
+            "achieved": productive >= goal_seconds,
+            "remaining": "" if productive >= goal_seconds else _format_seconds(goal_seconds - productive),
+        }
 
         flow = self.store.day_flow(selected_day)
         focus_sessions = flow.focus_sessions(min_seconds=25 * 60)
@@ -132,6 +148,7 @@ class DashboardMixin(WebApiBase):
             "donut": {"total": _format_seconds(total_seconds), "segments": donut_segments},
             "hourly": hourly,
             "topApps": top_apps,
+            "goal": goal,
             "focusSummary": focus_summary,
             "currentActivity": current_activity,
         }

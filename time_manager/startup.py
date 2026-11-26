@@ -8,7 +8,15 @@ from time_manager.paths import APP_NAME
 _REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
+# 자동 실행은 창을 열지 않고 트레이에서 시작
+TRAY_ARGUMENT = "--tray"
+
+
 def _launch_command() -> str:
+    return f"{_program_command()} {TRAY_ARGUMENT}"
+
+
+def _program_command() -> str:
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}"'
     from pathlib import Path
@@ -28,6 +36,21 @@ def is_enabled() -> bool:
             return True
     except Exception:
         return False
+
+
+def upgrade_command() -> None:
+    """이전 버전이 이 프로그램으로 등록한 자동 실행에만 트레이 인자를 붙임. 설치본에서만."""
+    if not getattr(sys, "frozen", False):
+        return
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _REG_PATH) as key:
+            registered, _ = winreg.QueryValueEx(key, APP_NAME)
+        if str(registered).lower() == _program_command().lower():
+            enable()
+    except Exception:  # 등록하지 않았거나 레지스트리를 쓸 수 없음
+        return
 
 
 def enable() -> None:

@@ -145,11 +145,13 @@ class BackupMixin(WebApiBase):
         self.tracker.classifier = RuleClassifier.from_file(self.rules_path)
         self.tracker.set_privacy_options(self.settings.store_domain_only, self.settings.store_window_titles)
         self._apply_alert_settings()
+        self._apply_tracking_options()
         return {"message": f"백업을 복원했습니다.{notice}", **self.get_settings()}
 
     def _apply_alert_settings(self) -> None:
         """복원한 알림 설정은 앱을 다시 켜지 않아도 적용."""
         self.tracker.unproductive_alert_seconds = self.settings.unproductive_limit_minutes * 60
+        self.tracker.daily_goal_seconds = self.settings.daily_goal_minutes * 60
         if self.tracker.work_end_hour != self.settings.work_end_hour:
             self.tracker.work_end_hour = self.settings.work_end_hour
             self.tracker.reset_end_of_day_state()

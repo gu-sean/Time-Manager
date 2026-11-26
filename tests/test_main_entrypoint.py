@@ -27,4 +27,11 @@ def test_main_uses_project_root() -> None:
     with patch("main.run_webview") as run_webview:
         main.main()
 
-    run_webview.assert_called_once_with(Path(main.__file__).resolve().parent)
+    run_webview.assert_called_once_with(Path(main.__file__).resolve().parent, start_hidden=False)
+
+
+def test_main_starts_in_the_tray_when_asked():
+    with patch("main.run_webview") as run_webview, patch("sys.argv", ["TimeManager.exe", "--tray"]):
+        main.main()
+
+    run_webview.assert_called_once_with(Path(main.__file__).resolve().parent, start_hidden=True)

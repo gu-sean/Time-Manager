@@ -5,12 +5,13 @@ from pathlib import Path
 from time_manager.app import run_webview
 from time_manager.crash_report import handle_crash
 from time_manager.paths import user_data_dir
+from time_manager.startup import TRAY_ARGUMENT
 
 
 def main() -> None:
     project_root = Path(__file__).resolve().parent
     try:
-        run_webview(project_root)
+        run_webview(project_root, start_hidden=TRAY_ARGUMENT in sys.argv[1:])
     except Exception as exc:
         logging.getLogger(__name__).exception("Unhandled Time Manager error")
         handle_crash(exc, user_data_dir(project_root))

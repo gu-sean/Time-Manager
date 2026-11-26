@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import sqlite3
 from datetime import date, timedelta
 from typing import Any
 
@@ -7,18 +9,22 @@ from time_manager.formatting import _format_seconds, _truncate
 from time_manager.models import Category
 from time_manager.rules import (
     BROWSER_APPS,
+    RuleClassifier,
     RuleConflictError,
+    _domain_from_url,
     load_rules,
     remove_rule_value,
     rule_from_candidate,
     rule_key_for_selection,
     update_rule_value,
 )
-from time_manager.storage import BreakdownRow
+from time_manager.storage import BreakdownRow, Reclassification
 
-from ._shared import WebApiBase
+from ._shared import WebApiBase, _CATEGORY_LABELS
 
 _MIN_SUGGESTION_SECONDS = 60
+_PREVIEW_ROWS = 10
+_log = logging.getLogger(__name__)
 
 
 class RulesMixin(WebApiBase):
@@ -103,6 +109,48 @@ class RulesMixin(WebApiBase):
             and row.label.lower() not in BROWSER_APPS
             and row.label.lower() not in self.settings.dismissed_suggestions
         ][: max(1, int(limit))]
+
+    def preview_rule_reapply(self) -> dict[str, Any]:
+        """지난 기록에 지금 규칙을 적용하면 바뀌는 내용. 아무것도 바꾸지 않음."""
+        changes = self._rule_changes()
+        grouped: dict[tuple[str, Category, Category], list[int]] = {}
+        for item in changes:
+            name = _domain_from_url(item.url) or item.app_name
+            totals = grouped.setdefault((name, item.old, item.new), [0, 0])
+            totals[0] += 1
+            totals[1] += item.seconds
+        ranked = sorted(grouped.items(), key=lambda entry: entry[1][1], reverse=True)
+        return {
+            "count": len(changes),
+            "timeLabel": _format_seconds(sum(item.seconds for item in changes)),
+            "items": [
+                {
+                    "target": _truncate(name, 60),
+                    "from": _CATEGORY_LABELS[old],
+                    "to": _CATEGORY_LABELS[new],
+                    "count": count,
+                    "timeLabel": _format_seconds(seconds),
+                }
+                for (name, old, new), (count, seconds) in ranked[:_PREVIEW_ROWS]
+            ],
+            "more": max(0, len(ranked) - _PREVIEW_ROWS),
+        }
+
+    def reapply_rules(self) -> dict[str, Any]:
+        """지난 기록에 지금 규칙을 적용. 되돌릴 수 있도록 먼저 백업."""
+        changes = self._rule_changes()
+        if not changes:
+            return {"message": "바뀌는 기록이 없어요.", "error": ""}
+        try:
+            safety = self._backup_manager().safety_backup("reapply")
+        except (OSError, sqlite3.Error) as exc:
+            _log.warning("backup before reapply failed: %s", type(exc).__name__)
+            return {"message": "", "error": "먼저 백업하지 못해 기록을 바꾸지 않았어요. 디스크 공간과 데이터 폴더 권한을 확인하세요."}
+        count = self.store.apply_reclassification(changes)
+        return {"message": f"지난 기록 {count}건의 분류를 바꿨어요. 이전 상태 백업: {safety.name}", "error": ""}
+
+    def _rule_changes(self) -> list[Reclassification]:
+        return self.store.reclassification_changes(RuleClassifier.from_file(self.rules_path).classify)
 
     def get_dismissed_suggestions(self) -> list[str]:
         return list(self.settings.dismissed_suggestions)

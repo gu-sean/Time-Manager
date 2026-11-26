@@ -335,6 +335,11 @@ function App() {
               onApplySuggestion={rulesHandlers.handleApplyRuleSuggestion}
               external={externalAi}
               onGetAiSuggestions={rulesHandlers.handleGetAiSuggestions}
+              onReapplied={(message) => {
+                setInbox(null);
+                handleRecordsChanged();
+                setToast(message);
+              }}
             />
           )}
           {activePage === 'report' && report && (
@@ -354,6 +359,7 @@ function App() {
               onSave={settingsHandlers.handleSaveSettings}
               onToggleAutoBackup={settingsHandlers.handleToggleAutoBackup}
               onToggleStartup={settingsHandlers.handleToggleStartup}
+              onSaveTracking={settingsHandlers.handleSaveTracking}
               onToggleNotifications={settingsHandlers.handleToggleSettingsNotifications}
               onToggleTheme={settingsHandlers.handleSetTheme}
               onSetProfile={settingsHandlers.handleSetProfile}

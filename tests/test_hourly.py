@@ -66,3 +66,16 @@ def test_categories_stay_apart_and_nothing_is_lost(store: ActivityStore) -> None
     add(store, DAY, "14:20:00", 600, "neutral")
     rows = store.hourly_summaries_between(DAY, DAY)
     assert (rows[13].unproductive_seconds, rows[14].unproductive_seconds, rows[14].neutral_seconds) == (600, 600, 600)
+
+def test_several_rows_in_one_hour_are_added_up(store: ActivityStore) -> None:
+    add(store, DAY, "09:00:00", 600)
+    add(store, DAY, "09:15:00", 900)
+    add(store, DAY, "09:45:00", 60)
+    assert minutes_by_hour(store, DAY) == {9: 26}
+
+
+def test_the_hourly_total_equals_the_day_total_with_many_rows(store: ActivityStore) -> None:
+    for index in range(90):
+        add(store, DAY, f"{8 + index // 30:02d}:{(index % 30) * 2:02d}:00", 70)
+    hourly = sum(row.productive_seconds for row in store.hourly_summaries_between(DAY, DAY))
+    assert hourly == sum(row.seconds for row in store.summary_for_day(DAY)) == 90 * 70

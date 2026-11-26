@@ -124,6 +124,32 @@ export default function Dashboard({ data }: DashboardProps) {
         })}
       </div>
 
+      <div className="tm-card tm-goal-card">
+        <div className="tm-goal-head">
+          <div className="tm-card-title">{data.viewingToday ? '오늘' : '이 날의'} 생산 목표</div>
+          <span className="tm-goal-value">
+            {data.goal.value} · {data.goal.pct}%
+          </span>
+        </div>
+        <div
+          className="tm-goal-track"
+          role="progressbar"
+          aria-label="일간 생산 목표 진행률"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.min(100, data.goal.pct)}
+        >
+          <div className="tm-goal-fill" style={{ width: `${data.goal.ratio * 100}%` }} />
+        </div>
+        <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+          {data.goal.achieved
+            ? '목표를 달성했어요.'
+            : data.viewingToday
+              ? `목표까지 ${data.goal.remaining} 남았어요.`
+              : `목표에 ${data.goal.remaining} 모자랐어요.`}
+        </div>
+      </div>
+
       <div className="tm-flow-row">
         <div className="tm-card">
           <div className="tm-card-title">시간 분포</div>

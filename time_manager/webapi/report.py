@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from time_manager.formatting import _display_label, _format_seconds, _report_period_for_label, _truncate
@@ -43,15 +43,26 @@ class ReportMixin(WebApiBase):
             insight_main = "기록된 데이터가 없습니다."
 
         if len(rows) >= 2:
-            today_row, prev_row = rows[-1], rows[-2]
-            p_delta = today_row.productive_seconds - prev_row.productive_seconds
-            u_delta = today_row.unproductive_seconds - prev_row.unproductive_seconds
+            last_row, prev_row = rows[-1], rows[-2]
+            if end_day == date.today():
+                # 끝나지 않은 오늘은 어제의 같은 시각까지와 비교
+                subject = "어제 같은 시각보다"
+                earlier = self.store.category_totals_before(
+                    datetime.combine(end_day - timedelta(days=1), datetime.now().time())
+                )
+                before_productive, before_unproductive = earlier[Category.PRODUCTIVE], earlier[Category.UNPRODUCTIVE]
+            else:
+                subject = f"{end_day.month}월 {end_day.day}일은 전날보다"
+                before_productive, before_unproductive = prev_row.productive_seconds, prev_row.unproductive_seconds
 
             def _signed(seconds: int) -> str:
                 sign = "+" if seconds >= 0 else "-"
                 return f"{sign}{abs(seconds) // 60}분"
 
-            insight_sub = f"어제보다 생산 시간 {_signed(p_delta)}, 비생산 시간 {_signed(u_delta)}입니다. "
+            insight_sub = (
+                f"{subject} 생산 시간 {_signed(last_row.productive_seconds - before_productive)}, "
+                f"비생산 시간 {_signed(last_row.unproductive_seconds - before_unproductive)}입니다. "
+            )
         else:
             insight_sub = ""
         if hourly_rows:
@@ -79,8 +90,8 @@ class ReportMixin(WebApiBase):
             weakest_weekday = max(active_weekdays, key=lambda row: row.unproductive_seconds)
             if weakest_weekday.unproductive_seconds > 0:
                 weekday_text = (
-                    f"{self._WEEKDAY_LABELS[weakest_weekday.weekday]}요일에 비생산 시간이 가장 많았습니다. "
-                    f"{_format_seconds(weakest_weekday.unproductive_seconds)}부터 줄여보세요."
+                    f"{self._WEEKDAY_LABELS[weakest_weekday.weekday]}요일에 비생산 시간이 가장 많았습니다 "
+                    f"(합계 {_format_seconds(weakest_weekday.unproductive_seconds)})."
                 )
             else:
                 strongest_weekday = max(active_weekdays, key=lambda row: row.productive_seconds)

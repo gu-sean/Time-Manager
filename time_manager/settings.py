@@ -21,6 +21,14 @@ class AppSettings:
     store_domain_only: bool = True
     store_window_titles: bool = True
     retention_days: int = 0
+    # 입력이 이 시간 동안 없으면 자리 비움
+    idle_minutes: int = 5
+    # 영상·회의 중에는 입력이 없어도 기록
+    record_media: bool = True
+    trim_idle_time: bool = False
+    # 창을 닫아도 트레이에서 계속 기록
+    close_to_tray: bool = True
+    tray_hint_shown: bool = False
     notifications_enabled: bool = True
     auto_backup_enabled: bool = True
     last_auto_backup: str = ""
@@ -74,6 +82,11 @@ class SettingsStore:
             store_domain_only=bool(data.get("store_domain_only", False)),
             store_window_titles=bool(data.get("store_window_titles", True)),
             retention_days=max(0, number("retention_days", 0)),
+            idle_minutes=clamp_idle_minutes(number("idle_minutes", 5)),
+            record_media=bool(data.get("record_media", True)),
+            trim_idle_time=bool(data.get("trim_idle_time", False)),
+            close_to_tray=bool(data.get("close_to_tray", True)),
+            tray_hint_shown=bool(data.get("tray_hint_shown", False)),
             notifications_enabled=bool(data.get("notifications_enabled", True)),
             auto_backup_enabled=bool(data.get("auto_backup_enabled", True)),
             last_auto_backup=str(data.get("last_auto_backup", "")),
@@ -114,6 +127,14 @@ class SettingsStore:
         except OSError:
             return
         notices.add(f"설정 파일이 손상되어 읽지 못한 항목은 기본값을 사용해요. 원본은 '{kept}' 파일로 보관했습니다.")
+
+
+IDLE_MINUTES_RANGE = (1, 60)
+
+
+def clamp_idle_minutes(value: int) -> int:
+    low, high = IDLE_MINUTES_RANGE
+    return min(max(value, low), high)
 
 
 def _coerce_theme(value: object) -> str:

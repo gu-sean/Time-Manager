@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { dismissRuleSuggestion, getDismissedSuggestions, previewAiRequest, restoreRuleSuggestion } from '../api';
+import {
+  dismissRuleSuggestion,
+  getDismissedSuggestions,
+  previewAiRequest,
+  previewRuleReapply,
+  reapplyRules,
+  restoreRuleSuggestion,
+} from '../api';
 import { useAiRequest } from '../hooks/useAiRequest';
 import { AiFailure, AiPreview, AiProgress } from './AiRequestControls';
-import type { AIRuleSuggestion, AIRuleSuggestionsResult, RuleItem, RuleSuggestion, RulesData } from '../types';
+import type { AIRuleSuggestion, AIRuleSuggestionsResult, RuleItem, RuleReapplyPreview, RuleSuggestion, RulesData } from '../types';
 
 const PAGE_SIZE = 20;
 const TYPE_OPTIONS = ['도메인', '앱 이름', '창 제목 키워드'];
@@ -24,6 +31,7 @@ interface RulesProps {
   onApplySuggestion: (target: string, category: string) => Promise<RulesData>;
   external: boolean;
   onGetAiSuggestions: (requestId: string, builtin: boolean) => Promise<AIRuleSuggestionsResult>;
+  onReapplied: (message: string) => void;
 }
 
 interface EditTarget {
@@ -286,6 +294,92 @@ function RuleSuggestions({
   );
 }
 
+function RuleReapply({ onApplied }: { onApplied: (message: string) => void }) {
+  const [preview, setPreview] = useState<RuleReapplyPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const run = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setError('');
+    try {
+      await work();
+    } catch {
+      setError('지난 기록을 처리하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const check = () =>
+    run(async () => {
+      setMessage('');
+      setPreview(await previewRuleReapply());
+    });
+
+  const apply = () =>
+    run(async () => {
+      const result = await reapplyRules();
+      setPreview(null);
+      setError(result.error);
+      setMessage(result.message);
+      if (!result.error) onApplied(result.message);
+    });
+
+  return (
+    <div className="tm-card">
+      <div className="tm-rule-list-head" style={{ marginBottom: 6 }}>
+        <div className="tm-card-title">지난 기록에도 적용</div>
+        <button className="tm-btn-small tm-btn-ghost" type="button" disabled={busy} onClick={check}>
+          {busy && !preview ? '확인 중…' : '바뀔 내용 보기'}
+        </button>
+      </div>
+      <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+        지금 규칙에 맞는 지난 기록의 분류를 바꿔요. 직접 바꾼 분류와 맞는 규칙이 없는 기록은 그대로 둬요.
+      </div>
+      {error && <div className="tm-rule-error" role="alert" style={{ marginTop: 8 }}>{error}</div>}
+      {message && (
+        <div role="status" style={{ fontSize: 12, fontWeight: 700, color: 'var(--tm-ok)', marginTop: 8, wordBreak: 'break-all' }}>
+          {message}
+        </div>
+      )}
+      {preview && preview.count === 0 && <div className="tm-empty-row">바뀌는 기록이 없어요.</div>}
+      {preview && preview.count > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div role="status" style={{ fontSize: 12, fontWeight: 700, color: 'var(--tm-ink)' }}>
+            전체 기간의 {preview.count}건({preview.timeLabel})이 바뀌어요.
+          </div>
+          {preview.items.map((item) => (
+            <div key={`${item.target}:${item.from}:${item.to}`} className="tm-reapply-row">
+              <span className="tm-ellipsis" title={item.target}>{item.target}</span>
+              <span>
+                {item.from} → <b>{item.to}</b>
+              </span>
+              <span>
+                {item.count}건 · {item.timeLabel}
+              </span>
+            </div>
+          ))}
+          {preview.more > 0 && <div className="tm-settings-help">그 밖의 {preview.more}개 항목도 함께 바뀌어요.</div>}
+          <div className="tm-settings-help" style={{ maxWidth: 'none', marginTop: 8 }}>
+            적용 직전 상태를 자동으로 백업해요. 되돌리려면 개인화의 백업 복원에서 그 파일을 선택하세요(규칙과 설정도 그때로
+            돌아가요).
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <button className="tm-btn-small tm-btn-primary" type="button" disabled={busy} onClick={apply}>
+              {busy ? '적용 중…' : `${preview.count}건 적용`}
+            </button>
+            <button className="tm-btn-small tm-btn-ghost" type="button" disabled={busy} onClick={() => setPreview(null)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Rules({
   data,
   onAdd,
@@ -295,6 +389,7 @@ export default function Rules({
   onApplySuggestion,
   external,
   onGetAiSuggestions,
+  onReapplied,
 }: RulesProps) {
   const [ruleType, setRuleType] = useState(TYPE_OPTIONS[0]);
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
@@ -391,6 +486,9 @@ export default function Rules({
         )}
         {data.error && <div className="tm-rule-error">{data.error}</div>}
       </div>
+
+      {/* 규칙이 바뀌면 이전 미리보기는 버림 */}
+      <RuleReapply key={data.items.map((rule) => `${rule.key}:${rule.value}`).join('|')} onApplied={onReapplied} />
 
       <div className="tm-card">
         <div className="tm-rule-list-head">

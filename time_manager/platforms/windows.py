@@ -93,6 +93,14 @@ class WindowsMonitor(PlatformMonitor):
         elapsed_ms = (kernel32.GetTickCount() - last_input.dwTime) & 0xFFFFFFFF
         return max(0, int(elapsed_ms / 1000))
 
+    def media_playing(self, app_name: str) -> bool:
+        from time_manager.platforms import media
+
+        if not media.display_required():
+            return False
+        _initialize_com()
+        return media.app_is_audible(app_name, _image_path)
+
     def _browser_url(self, hwnd: int, app_name: str, title: str) -> str | None:
         if app_name.lower() not in self.browser_processes:
             self._last_browser_key = None
@@ -142,9 +150,10 @@ def _process_id(hwnd: int) -> int | None:
 
 def _process_path(hwnd: int) -> str:
     pid = _process_id(hwnd)
-    if not pid:
-        return ""
+    return _image_path(pid) if pid else ""
 
+
+def _image_path(pid: int) -> str:
     handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
         return ""
@@ -158,6 +167,14 @@ def _process_path(hwnd: int) -> str:
         kernel32.CloseHandle(handle)
 
 
+def _initialize_com() -> None:
+    # UI 자동화·오디오 조회는 스레드마다 COM 초기화가 필요. 스레드가 사는 동안 유지
+    if not hasattr(_com, "initializer"):
+        import uiautomation as auto
+
+        _com.initializer = auto.UIAutomationInitializerInThread()
+
+
 def _active_browser_url(hwnd: int, app_name: str) -> tuple[object, str]:
     # 반환값: (주소 | None | TYPING, 진단 메시지). 메시지가 빈 문자열이면 정상
     if app_name.lower() not in WindowsMonitor.browser_processes:
@@ -169,9 +186,7 @@ def _active_browser_url(hwnd: int, app_name: str) -> tuple[object, str]:
         return None, "브라우저 URL 수집 불가: uiautomation 미설치 (pip install uiautomation)"
 
     try:
-        # UI 자동화는 스레드마다 초기화가 필요. 스레드가 사는 동안 유지
-        if not hasattr(_com, "initializer"):
-            _com.initializer = auto.UIAutomationInitializerInThread()
+        _initialize_com()
         return _read_address_bar(auto.ControlFromHandle(hwnd))
     except Exception as exc:
         return None, f"브라우저 URL 추출 실패: {type(exc).__name__}"

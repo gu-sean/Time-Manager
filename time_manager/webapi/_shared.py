@@ -76,9 +76,15 @@ def _productivity_score(totals: dict[Category, int]) -> int:
     return round((totals[Category.PRODUCTIVE] / focused) * 100)
 
 
-def _delta_text(delta: int, *, unit: str = "") -> str:
+def _delta_text(delta: int, *, basis: str, unit: str = "") -> str:
+    """``basis`` 는 비교 대상 이름 (예: "전날", "어제 같은 시각")."""
     if delta == 0:
-        return "어제와 같음"
+        return f"{basis}{'과' if _ends_with_consonant(basis) else '와'} 같음"
     arrow = "▲" if delta > 0 else "▼"
     value = _format_seconds(abs(delta)) if not unit else f"{abs(delta)}{unit}"
-    return f"{arrow} {value} (어제 대비)"
+    return f"{arrow} {value} ({basis} 대비)"
+
+
+def _ends_with_consonant(word: str) -> bool:
+    code = ord(word[-1]) - 0xAC00
+    return 0 <= code <= 11171 and code % 28 != 0

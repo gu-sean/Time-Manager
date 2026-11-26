@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from time_manager import notices
 from time_manager.fileio import atomic_write_text
-from time_manager.models import ActiveTarget, Category, ClassifiedActivity
+from time_manager.models import NO_RULE_REASON, ActiveTarget, Category, ClassifiedActivity
 
 
 class RuleConflictError(ValueError):
@@ -131,7 +131,7 @@ class RuleClassifier:
         if unproductive_keyword:
             return ClassifiedActivity(target, Category.UNPRODUCTIVE, f"unproductive title keyword: {unproductive_keyword}")
 
-        return ClassifiedActivity(target, Category.NEUTRAL, "no matching rule")
+        return ClassifiedActivity(target, Category.NEUTRAL, NO_RULE_REASON)
 
 
 def _domain_from_url(url: str | None) -> str | None:

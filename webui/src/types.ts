@@ -42,6 +42,7 @@ export interface CurrentActivity {
 }
 
 export interface DashboardData {
+  goal: DailyGoal;
   problem?: string;
   notices?: string[];
   dateLabel: string;
@@ -71,6 +72,7 @@ export interface InboxData {
   records: InboxRecord[];
   searchActive: boolean;
   resultCount: number | null;
+  truncated?: boolean;
   query: string;
   category: string | null;
 }
@@ -210,6 +212,29 @@ export interface Option {
   label: string;
 }
 
+/** 바꿀 항목만 전송. 자리 비움 기준은 빈칸이면 백엔드가 거절. */
+export interface DailyGoal {
+  value: string;
+  pct: number;
+  ratio: number;
+  achieved: boolean;
+  remaining: string;
+}
+
+export interface RuleReapplyPreview {
+  count: number;
+  timeLabel: string;
+  items: { target: string; from: string; to: string; count: number; timeLabel: string }[];
+  more: number;
+}
+
+export interface TrackingOptions {
+  idleMinutes?: number | '';
+  recordMedia?: boolean;
+  trimIdleTime?: boolean;
+  closeToTray?: boolean;
+}
+
 export interface SettingsData {
   appVersion: string;
   dailyGoalMinutes: number;
@@ -224,6 +249,10 @@ export interface SettingsData {
   notificationsEnabled: boolean;
   autoBackupEnabled: boolean;
   startupEnabled: boolean;
+  idleMinutes: number;
+  recordMedia: boolean;
+  trimIdleTime: boolean;
+  closeToTray: boolean;
   storeDomainOnly: boolean;
   storeWindowTitles: boolean;
   retentionDays: number;

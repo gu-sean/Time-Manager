@@ -28,8 +28,9 @@ import {
   toggleAutoBackup,
   toggleNotifications,
   toggleStartup,
+  saveTrackingOptions,
 } from '../api';
-import type { PresetItem, AIModelList, AISettingsInput, AITestResult, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
+import type { PresetItem, AIModelList, AISettingsInput, AITestResult, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RulesData, SettingsData, TrackingOptions, UpdateInfo } from '../types';
 
 interface Setters {
   setSettings: (data: SettingsData) => void;
@@ -67,6 +68,12 @@ export function useSettingsHandlers({
     const result = await toggleStartup(enabled);
     setSettings(result);
     setToast(result.error ? '' : enabled ? '시작 시 자동 실행을 켰습니다.' : '시작 시 자동 실행을 껐습니다.');
+  }, []);
+
+  const handleSaveTracking = useCallback(async (changes: TrackingOptions) => {
+    const result = await saveTrackingOptions(changes);
+    setSettings(result);
+    setToast(result.error ? '' : '기록 방식을 저장했습니다.');
   }, []);
 
   const handleToggleSettingsNotifications = useCallback(async (enabled: boolean) => {
@@ -208,6 +215,7 @@ export function useSettingsHandlers({
     handleSaveSettings,
     handleToggleAutoBackup,
     handleToggleStartup,
+    handleSaveTracking,
     handleToggleSettingsNotifications,
     handleSetTheme,
     handleSetProfile,

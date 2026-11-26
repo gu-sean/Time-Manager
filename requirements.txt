@@ -1,6 +1,7 @@
 uiautomation>=2.0.20
 Pillow>=10.0.0
-pystray>=0.19.5
+# tray.py 가 창 메시지 처리를 바꿈: 새 버전은 확인한 뒤 올릴 것
+pystray>=0.19.5,<0.20
 winotify>=1.1.0
 pywebview>=6.0
 cryptography>=42.0.0

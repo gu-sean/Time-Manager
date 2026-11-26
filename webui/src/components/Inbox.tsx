@@ -124,6 +124,7 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
         {data.searchActive && data.resultCount !== null && (
           <div role="status" aria-live="polite" style={{ fontSize: 11.5, color: 'var(--tm-ink-4)', marginBottom: 8 }}>
             최근 30일 · 검색 결과 {data.resultCount}건
+            {data.truncated && ' (최신 결과만 표시해요. 검색어를 더 넣으면 좁혀져요.)'}
           </div>
         )}
 

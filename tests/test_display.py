@@ -68,13 +68,13 @@ def test_no_screen_shows_a_raw_address(api: WebApi) -> None:
 
     for payload in (dashboard["topApps"], review["highlights"], review["suggestion"], report):
         assert "https://" not in str(payload) and "v=secret" not in str(payload)
-    assert dashboard["topApps"][0]["label"] == "youtube.com/watch"
+    assert dashboard["topApps"][0]["label"] == "youtube.com"  # 같은 사이트의 페이지는 하나로 묶음
 
 
 def test_no_change_is_not_shown_as_an_increase(api: WebApi) -> None:
-    assert {stat["delta"] for stat in api.get_dashboard()["stats"]} == {"어제와 같음"}
+    assert {stat["delta"] for stat in api.get_dashboard()["stats"]} == {"어제 같은 시각과 같음"}
 
     _record(api, "game.exe", "t")
 
     deltas = {stat["key"]: stat["delta"] for stat in api.get_dashboard()["stats"]}
-    assert deltas["unproductive"].startswith("▲") and deltas["productive"] == "어제와 같음"
+    assert deltas["unproductive"].startswith("▲") and deltas["productive"] == "어제 같은 시각과 같음"

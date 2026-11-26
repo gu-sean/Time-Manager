@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AIModelList, AIProvider, AIService, AISettingsInput, AITestResult, InstallUpdateResult, SettingsData, UpdateInfo } from '../types';
+import type { AIModelList, AIProvider, AIService, AISettingsInput, AITestResult, InstallUpdateResult, SettingsData, TrackingOptions, UpdateInfo } from '../types';
 import Toggle from './Toggle';
 import PresetSection from './PresetSection';
 import type { PresetHandlers } from './PresetSection';
@@ -22,6 +22,7 @@ interface SettingsProps {
   onSave: (payload: Record<string, unknown>) => void;
   onToggleAutoBackup: (enabled: boolean) => void;
   onToggleStartup: (enabled: boolean) => void;
+  onSaveTracking: (changes: TrackingOptions) => void;
   onToggleNotifications: (enabled: boolean) => void;
   onToggleTheme: (theme: 'light' | 'dark') => void;
   onSetProfile: (profile: string) => void;
@@ -425,6 +426,68 @@ function AiExclusionCard({
   );
 }
 
+function TrackingCard({ data, onSave }: { data: SettingsData; onSave: (changes: TrackingOptions) => void }) {
+  const [idleMinutes, setIdleMinutes] = useState<number | ''>(data.idleMinutes);
+  const [syncedWith, setSyncedWith] = useState(data.idleMinutes);
+  if (data.idleMinutes !== syncedWith) {
+    setSyncedWith(data.idleMinutes);
+    setIdleMinutes(data.idleMinutes);
+  }
+
+  const options: Array<{ key: 'closeToTray' | 'recordMedia' | 'trimIdleTime'; label: string; help: string }> = [
+    {
+      key: 'closeToTray',
+      label: '창을 닫아도 계속 기록',
+      help: '창을 닫으면 트레이(작업 표시줄 오른쪽)에 남아요. 끝내려면 트레이 아이콘의 "종료"를 누르세요.',
+    },
+    {
+      key: 'recordMedia',
+      label: '영상·회의 중에는 입력이 없어도 기록',
+      help: '보고 있는 앱에서 소리가 나고 화면 켜짐이 유지될 때만 기록해요. 입력 없이 3시간이 지나면 멈춰요. 소리를 끈 영상은 알 수 없어요.',
+    },
+    {
+      key: 'trimIdleTime',
+      label: '자리를 비운 시간 빼기',
+      help: '자리 비움이 되면 마지막 입력 뒤에 기록한 시간도 지워요. 입력 없이 글을 읽은 시간도 함께 빠져요.',
+    },
+  ];
+
+  return (
+    <div className="tm-card">
+      <div className="tm-card-title" style={{ marginBottom: 10 }}>
+        기록 방식
+      </div>
+      {options.map((option) => (
+        <div className="tm-settings-row" key={option.key} style={{ borderTop: '1px solid var(--tm-line)' }}>
+          <div>
+            <span className="tm-settings-row-label">{option.label}</span>
+            <div className="tm-settings-help">{option.help}</div>
+          </div>
+          <Toggle label={option.label} checked={data[option.key]} onChange={(enabled) => onSave({ [option.key]: enabled })} />
+        </div>
+      ))}
+      <label className="tm-settings-field-label" htmlFor="idle-minutes" style={{ marginTop: 11 }}>
+        자리 비움 기준(입력이 없는 시간, 1~60분)
+      </label>
+      <div className="tm-settings-field-row" style={{ gap: 8, alignItems: 'center' }}>
+        <input
+          id="idle-minutes"
+          className="tm-settings-number-input"
+          type="number"
+          min={1}
+          max={60}
+          style={{ flex: 'none', width: 90 }}
+          value={idleMinutes}
+          onChange={(e) => setIdleMinutes(e.target.value === '' ? '' : Number(e.target.value))}
+        />
+        <button className="tm-btn-small tm-btn-primary" type="button" onClick={() => onSave({ idleMinutes })}>
+          기준 저장
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings({
   data,
   tab,
@@ -432,6 +495,7 @@ export default function Settings({
   onSave,
   onToggleAutoBackup,
   onToggleStartup,
+  onSaveTracking,
   onToggleNotifications,
   onToggleTheme,
   onSetProfile,
@@ -589,15 +653,22 @@ export default function Settings({
           <div className="tm-settings-field-row">
             <input id="weekly-goal" className="tm-settings-number-input" type="number" min={1} {...field('weeklyGoalMinutes')} />
           </div>
-          <label className="tm-settings-field-label" htmlFor="unproductive-limit">비생산 제한(분)</label>
+          <label className="tm-settings-field-label" htmlFor="unproductive-limit">비생산 상한(분)</label>
           <div className="tm-settings-field-row">
             <input id="unproductive-limit" className="tm-settings-number-input" type="number" min={1} {...field('unproductiveLimitMinutes')} />
+          </div>
+          <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+            알림: 비생산 활동이 쉬지 않고 이만큼 이어질 때(1분 이하의 다른 창 전환은 이어진 것으로 봐요). 코칭: 하루에 쓴
+            합계가 이 값을 넘었는지 알려줘요.
           </div>
           <label className="tm-settings-field-label">근무 시간</label>
           <div className="tm-settings-field-row" style={{ alignItems: 'center' }}>
             <input className="tm-settings-number-input" type="number" aria-label="근무 시작 시각" min={0} max={23} {...field('workStartHour')} />
             <span style={{ color: 'var(--tm-muted)' }}>–</span>
             <input className="tm-settings-number-input" type="number" aria-label="근무 종료 시각" min={1} max={24} {...field('workEndHour')} />
+          </div>
+          <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+            종료 시각에 하루 마무리 알림을 보내요. 시작 시각은 개인 모델 코칭의 참고 정보로만 써요.
           </div>
           <button className="tm-btn-small tm-btn-primary" type="button" style={{ marginTop: 12 }} onClick={saveGoals}>
             목표 저장
@@ -634,11 +705,12 @@ export default function Settings({
           <div className="tm-settings-row">
             <div>
               <span className="tm-settings-row-label">Windows 시작 시 자동 실행</span>
-              <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 1 }}>로그인할 때 Time Manager를 자동으로 시작해요.</div>
+              <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 1 }}>로그인하면 창 없이 트레이에서 기록을 시작해요.</div>
             </div>
             <Toggle label="Windows 시작 시 자동 실행" checked={data.startupEnabled} onChange={onToggleStartup} />
           </div>
         </div>
+        <TrackingCard data={data} onSave={onSaveTracking} />
         </div>
       </div>
 
@@ -681,14 +753,14 @@ export default function Settings({
             <input id="retention-days" className="tm-settings-number-input" type="number" min={0} style={{ flex: 'none', width: 90 }} {...field('retentionDays')} />
           </div>
           <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
-            0이 아니면, 보존 기간이 지난 기록은 앱을 시작할 때 삭제돼요.
+            0이 아니면, 보존 기간이 지난 기록은 앱을 시작할 때와 켜 둔 채 날짜가 바뀔 때 삭제돼요.
           </div>
           <button className="tm-btn-small tm-btn-primary" type="button" style={{ marginTop: 12 }} onClick={saveRetention}>
             {confirmRetention ? '오래된 기록 삭제에 동의하고 저장' : '보존 기간 저장'}
           </button>
           {confirmRetention && (
             <div className="tm-rule-error" role="alert" style={{ marginTop: 8, marginBottom: 0 }}>
-              다음에 앱을 시작할 때 {form.retentionDays}일보다 오래된 활동 기록과 코칭이 삭제되며 되돌릴 수 없어요. 필요하면
+              다음에 앱을 시작하거나 날짜가 바뀌면 {form.retentionDays}일보다 오래된 활동 기록과 코칭이 삭제되며 되돌릴 수 없어요. 필요하면
               먼저 백업을 내보내세요. 계속하려면 버튼을 한 번 더 누르세요.
             </div>
           )}

@@ -3,6 +3,10 @@ from enum import StrEnum
 from typing import Optional
 
 
+# 맞는 분류 규칙이 없어 중립이 된 기록의 근거
+NO_RULE_REASON = "no matching rule"
+
+
 class Category(StrEnum):
     PRODUCTIVE = "productive"
     UNPRODUCTIVE = "unproductive"

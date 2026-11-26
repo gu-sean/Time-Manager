@@ -5,6 +5,7 @@ from typing import Any
 
 from time_manager import __version__
 from time_manager.diagnostics import run_diagnostics as _run_diagnostics
+from time_manager.settings import IDLE_MINUTES_RANGE
 from time_manager.startup import disable as _startup_disable
 from time_manager.startup import enable as _startup_enable
 from time_manager.startup import is_enabled as _startup_is_enabled
@@ -29,6 +30,10 @@ class SettingsMixin(WebApiBase):
             "storeWindowTitles": self.settings.store_window_titles,
             "retentionDays": self.settings.retention_days,
             "theme": self.settings.theme,
+            "idleMinutes": self.settings.idle_minutes,
+            "recordMedia": self.settings.record_media,
+            "trimIdleTime": self.settings.trim_idle_time,
+            "closeToTray": self.settings.close_to_tray,
             "notificationStatus": self._notification_status_text(),
             "diagnosticInfo": self._diagnostic_info_text(),
             "diagnosticResults": "",
@@ -92,10 +97,36 @@ class SettingsMixin(WebApiBase):
         self.settings_store.save(self.settings)
         self.tracker.set_privacy_options(self.settings.store_domain_only, self.settings.store_window_titles)
         self.tracker.unproductive_alert_seconds = self.settings.unproductive_limit_minutes * 60
+        self.tracker.daily_goal_seconds = daily_goal * 60
         if self.tracker.work_end_hour != self.settings.work_end_hour:
             self.tracker.work_end_hour = self.settings.work_end_hour
             self.tracker.reset_end_of_day_state()
         return self.get_settings()
+
+    def save_tracking_options(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """기록 방식. 보낸 항목만 바꿈."""
+        payload = payload if isinstance(payload, dict) else {}
+        if "idleMinutes" in payload:
+            low, high = IDLE_MINUTES_RANGE
+            try:
+                minutes = int(payload["idleMinutes"])
+            except (ValueError, TypeError, OverflowError):
+                minutes = 0
+            if not low <= minutes <= high:
+                return {**self.get_settings(), "error": f"자리 비움 기준은 {low}~{high}분 사이로 입력해주세요."}
+            self.settings.idle_minutes = minutes
+        for key, name in (("recordMedia", "record_media"), ("trimIdleTime", "trim_idle_time"),
+                          ("closeToTray", "close_to_tray")):
+            if key in payload:
+                setattr(self.settings, name, bool(payload[key]))
+        self.settings_store.save(self.settings)
+        self._apply_tracking_options()
+        return self.get_settings()
+
+    def _apply_tracking_options(self) -> None:
+        self.tracker.idle_threshold_seconds = self.settings.idle_minutes * 60
+        self.tracker.record_media = self.settings.record_media
+        self.tracker.trim_idle_time = self.settings.trim_idle_time
 
     def set_theme(self, theme: str) -> dict[str, Any]:
         self.settings.theme = theme if isinstance(theme, str) and theme in {"light", "dark"} else "light"
@@ -147,10 +178,7 @@ class SettingsMixin(WebApiBase):
 
         result = download_and_launch_installer(asset_url)
         if result["started"]:
-            import webview
-
-            if webview.windows:
-                webview.windows[0].destroy()
+            self._quit_app()
         return result
 
     def run_diagnostics(self) -> dict[str, Any]:

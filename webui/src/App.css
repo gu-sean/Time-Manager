@@ -489,6 +489,7 @@
 .tm-stat-delta {
   font-size: 11px;
   font-weight: 700;
+  word-break: keep-all; /* "어제 같은 시각" 이 낱말 중간에서 끊기지 않게 함 */
 }
 
 .tm-flow-row {
@@ -1134,6 +1135,21 @@
   gap: 8px;
   margin-top: 10px;
   flex-wrap: wrap;
+}
+
+.tm-goal-card { padding-block: 14px; }
+.tm-goal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tm-goal-value { font-size: 12px; font-weight: 700; color: var(--tm-ink-2); font-variant-numeric: tabular-nums; }
+.tm-goal-track { height: 8px; margin: 9px 0 7px; border-radius: 4px; background: var(--tm-line); overflow: hidden; }
+.tm-goal-fill { height: 100%; border-radius: 4px; background: #128C6E; }
+.tm-reapply-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12px;
+  color: var(--tm-ink-3);
 }
 
 .tm-empty-row {
@@ -1915,6 +1931,11 @@
   max-width: 260px;
 }
 
+.tm-settings-field-row + .tm-settings-help {
+  max-width: none;
+  margin-bottom: 11px;
+}
+
 .tm-settings-field-label {
   font-size: 12px;
   font-weight: 600;
@@ -2224,7 +2245,7 @@
 }
 
 .tm-shell.dark .tm-toast {
-  background: rgba(127, 169, 138, 0.15);
+  background: #2c382f; /* 불투명: 뒤의 글자와 겹쳐 보이지 않게 함 */
   border-color: rgba(127, 169, 138, 0.3);
   color: #a8d4b4;
 }
