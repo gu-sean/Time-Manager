@@ -1,10 +1,10 @@
 # UTF-8
 # TimeManager.exe 용 PyInstaller 버전 정보
-# 버전 번호는 time_manager/__version__ (1.2.0) 과 일치시킬 것
+# 버전 번호는 time_manager/__version__ (1.2.1) 과 일치시킬 것
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 2, 0, 0),
-    prodvers=(1, 2, 0, 0),
+    filevers=(1, 2, 1, 0),
+    prodvers=(1, 2, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -20,11 +20,11 @@ VSVersionInfo(
           [
             StringStruct("CompanyName", "Time Manager"),
             StringStruct("FileDescription", "Time Manager — desktop time tracker"),
-            StringStruct("FileVersion", "1.2.0.0"),
+            StringStruct("FileVersion", "1.2.1.0"),
             StringStruct("InternalName", "TimeManager"),
             StringStruct("OriginalFilename", "TimeManager.exe"),
             StringStruct("ProductName", "Time Manager"),
-            StringStruct("ProductVersion", "1.2.0.0"),
+            StringStruct("ProductVersion", "1.2.1.0"),
           ],
         )
       ]

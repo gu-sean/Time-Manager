@@ -5,7 +5,7 @@
 ; AppVersion 은 time_manager/__version__ 과 일치시킬 것
 
 #define AppName "Time Manager"
-#define AppVersion "1.2.0"
+#define AppVersion "1.2.1"
 #define AppExe "TimeManager.exe"
 
 [Setup]
@@ -44,4 +44,6 @@ Name: "{autodesktop}\Time Manager"; Filename: "{app}\{#AppExe}"; Tasks: desktopi
 Name: "{userstartup}\Time Manager"; Filename: "{app}\{#AppExe}"; Tasks: startup
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,Time Manager}"; Flags: nowait postinstall skipifsilent
+; 탐색기를 거쳐 실행: 새 앱은 설치 프로그램이 아니라 바탕 화면의 환경을 받음
+; - v1.1.0 의 업데이트 버튼은 이전 exe 의 임시 폴더 정보를 설치 프로그램에 넘김 → 직접 실행하면 시작 실패
+Filename: "{win}\explorer.exe"; Parameters: """{app}\{#AppExe}"""; Description: "{cm:LaunchProgram,Time Manager}"; Flags: nowait postinstall skipifsilent

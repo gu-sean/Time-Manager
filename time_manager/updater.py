@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import tempfile
 import urllib.request
@@ -65,6 +66,20 @@ def check_for_update(timeout: float = 6.0) -> dict[str, Any]:
         }
 
 
+# 파일 하나로 묶은 exe 가 자기 임시 폴더를 알리는 환경 변수
+_PACKAGER_VARIABLES = ("_PYI_", "_MEIPASS")
+
+
+def _installer_environment() -> dict[str, str]:
+    """설치 프로그램에 줄 환경: 이 exe 의 임시 폴더 정보를 빼고 전달.
+
+    - 넘기면 설치 뒤 실행되는 새 exe 가 이미 지워진 폴더를 찾다 "Failed to load Python DLL" 로 실패
+    """
+    env = {key: value for key, value in os.environ.items() if not key.upper().startswith(_PACKAGER_VARIABLES)}
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return env
+
+
 def download_and_launch_installer(asset_url: str, timeout: float = 60.0) -> dict[str, Any]:
     """설치 파일을 내려받아 실행. 호출한 쪽이 앱을 종료하면 됨."""
     if not asset_url:
@@ -78,7 +93,7 @@ def download_and_launch_installer(asset_url: str, timeout: float = 60.0) -> dict
             payload = resp.read()
         installer_path = Path(tempfile.gettempdir()) / "TimeManager-Update-Setup.exe"
         installer_path.write_bytes(payload)
-        subprocess.Popen([str(installer_path)], close_fds=True)
+        subprocess.Popen([str(installer_path)], close_fds=True, env=_installer_environment())
         return {"started": True, "error": ""}
     except Exception as exc:
         _log.error("Update installer download/launch failed: %s", exc)

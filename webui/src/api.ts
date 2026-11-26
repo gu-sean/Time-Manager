@@ -378,7 +378,7 @@ function updateMockService(service: string, changes: Partial<AIService>): void {
 }
 
 let mockSettings: SettingsData = {
-  appVersion: '1.2.0',
+  appVersion: '1.2.1',
   dailyGoalMinutes: 180,
   weeklyGoalMinutes: 900,
   unproductiveLimitMinutes: 120,
