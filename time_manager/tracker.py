@@ -13,6 +13,8 @@ _log = logging.getLogger(__name__)
 _FAILURES_TO_REPORT = 3
 # 연속 사용 알림: 이 시간 이하로 다른 분류를 본 것은 흐름이 이어진 것으로 봄
 _STREAK_GRACE_SECONDS = 60
+# 집중 중 방해 알림: 비생산 활동이 이만큼 이어지면 (잠깐 지나치는 것은 알리지 않음)
+_FOCUS_ALERT_AFTER_SECONDS = 15
 # 영상·회의 확인
 _MEDIA_CHECK_AFTER_SECONDS = 30   # 입력이 이만큼 없을 때부터 확인
 _MEDIA_HOLD_SECONDS = 2 * 60      # 말이 끊기거나 장면이 조용한 동안은 재생 중으로 봄
@@ -22,10 +24,10 @@ _LOCK_SCREEN_APPS = frozenset({"lockapp.exe", "logonui.exe"})
 # 이 앱의 다른 인스턴스 (실행 중인 자신은 프로세스 id 로 식별)
 _OWN_EXECUTABLES = frozenset({"timemanager.exe", "timemanagerweb.exe"})
 
-from time_manager.models import ActiveTarget, Category, ClassifiedActivity
+from time_manager.models import PRIVATE_REASON, PRIVATE_TITLE, ActiveTarget, Category, ClassifiedActivity
 from time_manager.notifications import Notifier, default_notifier
 from time_manager.platforms import PlatformMonitor
-from time_manager.rules import RuleClassifier, _domain_from_url
+from time_manager.rules import RuleClassifier, _domain_from_url, _matches_domain
 from time_manager.storage import ActivityStore
 
 
@@ -54,6 +56,10 @@ class ActivityTracker:
     on_new_day: Callable[[], None] | None = None
     # 0 이면 목표 알림 없음
     daily_goal_seconds: int = 0
+    # 일간 목표를 적용하는 요일 (월=0 ~ 일=6)
+    goal_weekdays: frozenset[int] = frozenset(range(7))
+    # 집중 타이머가 도는 동안 비생산 활동을 하면 알림
+    focus_alert_enabled: bool = True
     monitor: PlatformMonitor = field(default_factory=default_monitor)
     notifier: Notifier = field(default_factory=default_notifier)
     on_activity: Callable[[ClassifiedActivity], None] | None = None
@@ -74,6 +80,12 @@ class ActivityTracker:
     _end_of_day_notified_date: str = field(default="", init=False)
     _work_end_armed: bool = field(default=False, init=False)
     _goal_notified_day: date | None = field(default=None, init=False)
+    # 시간을 정한 일시정지가 끝나는 때 (time.time()). None 이면 직접 다시 켤 때까지
+    _resume_at: float | None = field(default=None, init=False)
+    # 집중 타이머가 끝나는 때 (time.time()). 0 이면 집중 중이 아님
+    _focus_until: float = field(default=0.0, init=False)
+    _distracted_seconds: int = field(default=0, init=False)
+    _distraction_alerted: bool = field(default=False, init=False)
     _current_day: date | None = field(default=None, init=False)
     _media_app: str = field(default="", init=False)
     _quiet_seconds: int = field(default=0, init=False)
@@ -99,15 +111,29 @@ class ActivityTracker:
             self._thread.join(timeout=self.poll_seconds + 1)
         self._emit_status("기록을 중지했습니다.")
 
-    def pause(self) -> None:
+    def pause(self, minutes: int | None = None) -> None:
+        """``minutes`` 를 주면 그 뒤에 저절로 다시 기록."""
+        self._resume_at = _time.time() + minutes * 60 if minutes else None
         self._paused_event.set()
         self._reset_streak()
         self._unattended_seconds = 0
         self._emit_status("기록을 일시정지했습니다.")
 
     def resume(self) -> None:
+        self._resume_at = None
         self._paused_event.clear()
         self._emit_status("실시간 기록 중")
+
+    @property
+    def paused_until(self) -> float | None:
+        """시간을 정한 일시정지가 끝나는 때. 아니면 None."""
+        return self._resume_at if self.is_paused else None
+
+    def set_focus_session(self, ends_at: float | None) -> None:
+        """집중 타이머의 집중 단계가 끝나는 때. None 이면 집중 중이 아님."""
+        self._focus_until = float(ends_at or 0)
+        self._distracted_seconds = 0
+        self._distraction_alerted = False
 
     def toggle_pause(self) -> None:
         if self.is_paused:
@@ -148,7 +174,9 @@ class ActivityTracker:
 
     def _tick(self) -> None:
         if self._paused_event.is_set():
-            return
+            if self._resume_at is None or _time.time() < self._resume_at:
+                return
+            self.resume()
 
         idle_seconds = self._safe_idle_seconds()
         target, media = self._check_media(idle_seconds)
@@ -168,7 +196,12 @@ class ActivityTracker:
         target = target or self._safe_active_target()
         if target is None or self._should_skip_target(target):
             return
-        activity = self.classifier.classify(target)
+        if target.private:
+            # 시간만: 제목·주소를 버리고 분류 규칙도 적용하지 않음
+            target = ActiveTarget(target.app_name, PRIVATE_TITLE, None, target.process_id)
+            activity = ClassifiedActivity(target, Category.NEUTRAL, PRIVATE_REASON)
+        else:
+            activity = self.classifier.classify(target)
         stored_activity = self._privacy_filtered_activity(activity)
         self.store.record(stored_activity, self.poll_seconds)
         self._failures_in_a_row = 0
@@ -181,6 +214,7 @@ class ActivityTracker:
         self._update_streak(activity)
         self._maybe_start_new_day()
         self._maybe_goal_notify(activity)
+        self._maybe_focus_alert(activity)
         self._maybe_end_of_day_notify()
         if self.on_activity:
             self.on_activity(stored_activity)
@@ -301,6 +335,8 @@ class ActivityTracker:
         today = date.today()
         if goal <= 0 or activity.category != Category.PRODUCTIVE or self._goal_notified_day == today:
             return
+        if today.weekday() not in self.goal_weekdays:
+            return
         total = sum(row.seconds for row in self.store.summary_for_day(today) if row.category == Category.PRODUCTIVE)
         if not total - self.poll_seconds < goal <= total:
             return
@@ -308,6 +344,24 @@ class ActivityTracker:
         label = " ".join(part for part in (f"{hours}시간" if hours else "", f"{minutes}분" if minutes else "") if part)
         self.notifier.send("오늘 목표를 달성했어요", f"생산 시간 {label or '1분 미만'}을 채웠습니다.")
         self._goal_notified_day = today
+
+    def _maybe_focus_alert(self, activity: ClassifiedActivity) -> None:
+        """집중 중에 비생산 활동이 이어지면 한 번 알림 (다른 일로 돌아가면 다시 알릴 수 있음)."""
+        if not self.focus_alert_enabled or _time.time() >= self._focus_until:
+            return
+        if activity.category != Category.UNPRODUCTIVE:
+            self._distracted_seconds = 0
+            self._distraction_alerted = False
+            return
+        self._distracted_seconds += self.poll_seconds
+        if self._distraction_alerted or self._distracted_seconds < _FOCUS_ALERT_AFTER_SECONDS:
+            return
+        target = activity.target
+        name = _domain_from_url(target.url) or target.app_name  # 창 제목은 알림에 쓰지 않음
+        message = f"집중 타이머가 진행 중이에요. {name}은(는) 잠시 미뤄 둘까요?"
+        notify = getattr(self.notifier, "alert", None) or self.notifier.send  # 타이머처럼 사용자가 시작한 알림
+        notify("집중하는 중이에요", message)
+        self._distraction_alerted = True
 
     def _arm_end_of_day_notify(self) -> None:
         # 하루 마무리 알림은 work_end_hour 전부터 실행하다 그 시각을 지날 때만 허용
@@ -365,7 +419,8 @@ class ActivityTracker:
     def _privacy_filtered_activity(self, activity: ClassifiedActivity) -> ClassifiedActivity:
         target = activity.target
         url = _domain_url(target.url) if self.store_domain_only and target.url else target.url
-        title = target.window_title if self.store_window_titles else ""
+        # "비공개 창" 표시는 창 제목이 아니므로 유지
+        title = target.window_title if self.store_window_titles or activity.reason == PRIVATE_REASON else ""
         return ClassifiedActivity(
             target=ActiveTarget(app_name=target.app_name, window_title=title, url=url),
             category=activity.category,
@@ -381,7 +436,10 @@ class ActivityTracker:
         if app_name in _LOCK_SCREEN_APPS or (app_name == "unknown" and not target.window_title):
             return True
         excluded = {item.lower() for item in self.classifier.excluded_apps}
-        return app_name in excluded
+        if app_name in excluded:
+            return True
+        domain = _domain_from_url(target.url)
+        return bool(domain) and _matches_domain(domain, self.classifier.excluded_domains)
 
 def _domain_url(url: str) -> str:
     domain = _domain_from_url(url)

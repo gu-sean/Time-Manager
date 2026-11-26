@@ -1,19 +1,23 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import Toggle from './Toggle';
+import Icon from './Icon';
+import type { IconName } from './Icon';
 import { focusTimer, phaseSeconds } from '../focusTimerStore';
 import { formatClock } from '../time';
 import { getCurrentActivity } from '../api';
+// exe·트레이와 같은 그림 (작은 크기용)
+import brandIcon from '../../../assets/icon-small.svg';
 import type { CurrentActivity, DashboardData } from '../types';
 
 const ACTIVITY_POLL_MS = 2500;
 
-const NAV_ITEMS = [
-  { key: 'dashboard', icon: '🏠', label: '대시보드' },
-  { key: 'inbox', icon: '📥', label: '정리함' },
-  { key: 'review', icon: '🕒', label: '회고' },
-  { key: 'rules', icon: '⚙️', label: '규칙' },
-  { key: 'report', icon: '📊', label: '리포트' },
-  { key: 'settings', icon: '🛠️', label: '개인화' },
+const NAV_ITEMS: { key: string; icon: IconName; label: string }[] = [
+  { key: 'dashboard', icon: 'dashboard', label: '대시보드' },
+  { key: 'inbox', icon: 'inbox', label: '정리함' },
+  { key: 'review', icon: 'review', label: '회고' },
+  { key: 'rules', icon: 'rules', label: '규칙' },
+  { key: 'report', icon: 'report', label: '리포트' },
+  { key: 'settings', icon: 'settings', label: '개인화' },
 ];
 
 interface SidebarProps {
@@ -21,6 +25,7 @@ interface SidebarProps {
   onSelectPage: (page: string) => void;
   tracking: boolean;
   onToggleTracking: () => void;
+  onPause: (minutes: number | null) => void;
   dashboard: DashboardData | null;
   appVersion?: string;
 }
@@ -51,7 +56,16 @@ function TimerChip({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTracking, dashboard, appVersion }: SidebarProps) {
+const PAUSE_CHOICES: { label: string; minutes: number | null }[] = [
+  { label: '15분', minutes: 15 },
+  { label: '1시간', minutes: 60 },
+  { label: '다시 켤 때까지', minutes: null },
+];
+
+export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTracking, onPause, dashboard, appVersion }: SidebarProps) {
+  // 끄기를 누르면 얼마나 멈출지 고름: 다시 켜는 것을 잊어 하루가 빠지지 않게 함
+  const [choosingPause, setChoosingPause] = useState(false);
+  const pausedUntil = dashboard?.pausedUntil ?? '';
   const [elapsed, setElapsed] = useState(0);
   const [activity, setActivity] = useState<CurrentActivity | null>(dashboard?.currentActivity ?? null);
   const wasTracking = useRef(tracking);
@@ -87,9 +101,9 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
   return (
     <aside className="tm-sidebar">
       <div className="tm-brand">
-        <div className="tm-brand-icon">◷</div>
+        <img className="tm-brand-icon" src={brandIcon} alt="" width={30} height={30} />
         <div>
-          <div className="tm-brand-name">시간관리</div>
+          <div className="tm-brand-name">시간 관리 매니저</div>
           <div className="tm-brand-version">v{appVersion ?? '…'}</div>
         </div>
       </div>
@@ -105,7 +119,7 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
             onClick={() => onSelectPage(item.key)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPage(item.key); } }}
           >
-            <span aria-hidden="true">{item.icon}</span>
+            <Icon name={item.icon} className="tm-nav-icon" />
             <span>{item.label}</span>
           </div>
         ))}
@@ -130,10 +144,40 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
 
       <TimerChip onOpen={() => onSelectPage('dashboard')} />
 
+      {choosingPause && tracking && (
+        <div className="tm-pause-choices" role="group" aria-label="일시정지할 시간">
+          <span className="tm-pause-title">얼마나 멈출까요?</span>
+          <div className="tm-pause-buttons">
+            {PAUSE_CHOICES.map((choice) => (
+              <button
+                key={choice.label}
+                className="tm-btn-small tm-btn-ghost"
+                type="button"
+                onClick={() => {
+                  setChoosingPause(false);
+                  onPause(choice.minutes);
+                }}
+              >
+                {choice.label}
+              </button>
+            ))}
+            <button className="tm-btn-small tm-btn-ghost" type="button" onClick={() => setChoosingPause(false)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="tm-tracker">
         <div className="tm-tracker-left">
-          <Toggle checked={tracking} onChange={onToggleTracking} label="활동 추적" />
-          <span className="tm-tracker-label">{tracking ? '추적 중' : '일시정지'}</span>
+          <Toggle
+            checked={tracking}
+            onChange={(on) => (on ? onToggleTracking() : setChoosingPause((open) => !open))}
+            label="활동 추적"
+          />
+          <span className="tm-tracker-label">
+            {tracking ? '추적 중' : pausedUntil ? `${pausedUntil}까지 멈춤` : '일시정지'}
+          </span>
         </div>
         <span className="tm-tracker-elapsed">{formatElapsed(elapsed)}</span>
       </div>

@@ -1,4 +1,4 @@
-import type { PresetItem, AICoaching, AIModelList, AIRequestPreview, AskResult, CoachingHistoryEntry, AIService, AIRuleSuggestionsResult, AISettingsInput, AITestResult, CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, TrackingOptions, UpdateInfo, RuleReapplyPreview } from './types';
+import type { PresetItem, AICoaching, AIModelList, AIRequestPreview, AskResult, CoachingHistoryEntry, AIService, AIRuleSuggestionsResult, AISettingsInput, AITestResult, CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, TrackingOptions, UpdateInfo, RuleReapplyPreview, ActionResult, DeletePreview } from './types';
 
 declare global {
   interface Window {
@@ -7,6 +7,13 @@ declare global {
         get_dashboard(dateIso?: string | null): Promise<DashboardData>;
         toggle_notifications(enabled: boolean): Promise<DashboardData>;
         toggle_tracking(): Promise<DashboardData>;
+        pause_tracking(minutes: number | null): Promise<DashboardData>;
+        set_focus_session(endsAtMs: number | null): Promise<void>;
+        preview_delete_target(eventId: number): Promise<DeletePreview>;
+        delete_target_records(eventId: number): Promise<ActionResult>;
+        add_manual_entry(dateIso: string, start: string, minutes: number | '', label: string, category: string): Promise<ActionResult>;
+        preview_delete_period(startIso: string, endIso: string): Promise<DeletePreview>;
+        delete_period(startIso: string, endIso: string): Promise<ActionResult>;
         get_current_activity(): Promise<CurrentActivity | null>;
         send_focus_notification(title: string, body: string): Promise<void>;
         get_inbox(query?: string, category?: string | null, dateIso?: string | null): Promise<InboxData>;
@@ -76,13 +83,15 @@ let mockDashboard: DashboardData = {
   dateLabel: '오늘',
   viewingToday: true,
   tracking: true,
-  goal: { value: '4시간 20분 / 3시간', pct: 144, ratio: 1, achieved: true, remaining: '' },
+  comparedWith: '어제 같은 시각',
+  pausedUntil: '',
+  goal: { offDay: false, value: '4시간 20분 / 3시간', pct: 144, ratio: 1, achieved: true, remaining: '' },
   stats: [
-    { key: 'total', label: '총 사용 시간', value: '6h 15m', delta: '▲ 1h 20m (어제 대비)' },
-    { key: 'productive', label: '생산적 시간', value: '4h 20m', delta: '▲ 1h 10m (어제 대비)' },
-    { key: 'unproductive', label: '비생산적 시간', value: '1h 15m', delta: '▼ 20m (어제 대비)' },
-    { key: 'neutral', label: '중립 시간', value: '40m', delta: '▲ 10m (어제 대비)' },
-    { key: 'score', label: '생산성 점수', value: '82%', delta: '▲ 8점 (어제 대비)' },
+    { key: 'total', label: '총 사용 시간', value: '6시간 15분', delta: '▲ 1시간 20분', tone: 'neutral' },
+    { key: 'productive', label: '생산적 시간', value: '4시간 20분', delta: '▲ 1시간 10분', tone: 'good' },
+    { key: 'unproductive', label: '비생산적 시간', value: '1시간 15분', delta: '▼ 20분', tone: 'good' },
+    { key: 'neutral', label: '중립 시간', value: '40분', delta: '▲ 10분', tone: 'neutral' },
+    { key: 'score', label: '생산성 점수', value: '82점', delta: '▲ 8점', tone: 'good' },
   ],
   donut: {
     total: '6h 15m',
@@ -137,6 +146,44 @@ export async function toggleNotifications(enabled: boolean): Promise<DashboardDa
   if (hasPywebview()) return window.pywebview!.api.toggle_notifications(enabled);
   mockSettings = { ...mockSettings, notificationsEnabled: enabled };
   return mockDashboard;
+}
+
+export async function pauseTracking(minutes: number | null): Promise<DashboardData> {
+  if (hasPywebview()) return window.pywebview!.api.pause_tracking(minutes);
+  mockDashboard = { ...mockDashboard, tracking: false, pausedUntil: minutes ? '15:30' : '' };
+  return mockDashboard;
+}
+
+/** 집중 타이머의 집중 단계가 끝나는 때 (epoch ms). 멈추거나 쉬면 null. */
+export async function setFocusSession(endsAtMs: number | null): Promise<void> {
+  if (hasPywebview()) await window.pywebview!.api.set_focus_session(endsAtMs);
+}
+
+export async function previewDeleteTarget(eventId: number): Promise<DeletePreview> {
+  if (hasPywebview()) return window.pywebview!.api.preview_delete_target(eventId);
+  return { error: '', target: 'youtube.com', kindLabel: '사이트', count: 12, timeLabel: '3시간 10분' };
+}
+
+export async function deleteTargetRecords(eventId: number): Promise<ActionResult> {
+  if (hasPywebview()) return window.pywebview!.api.delete_target_records(eventId);
+  return { message: 'youtube.com 사이트의 기록 12건을 완전히 지웠어요.', error: '' };
+}
+
+export async function addManualEntry(
+  dateIso: string, start: string, minutes: number | '', label: string, category: string,
+): Promise<ActionResult> {
+  if (hasPywebview()) return window.pywebview!.api.add_manual_entry(dateIso, start, minutes, label, category);
+  return { message: `${start}부터 ${minutes}분을 추가했어요.`, error: '' };
+}
+
+export async function previewDeletePeriod(startIso: string, endIso: string): Promise<DeletePreview> {
+  if (hasPywebview()) return window.pywebview!.api.preview_delete_period(startIso, endIso);
+  return { error: '', count: 40, timeLabel: '6시간 4분' };
+}
+
+export async function deletePeriod(startIso: string, endIso: string): Promise<ActionResult> {
+  if (hasPywebview()) return window.pywebview!.api.delete_period(startIso, endIso);
+  return { message: `${startIso}~${endIso} 기록 40건을 완전히 지웠어요.`, error: '' };
 }
 
 export async function toggleTracking(): Promise<DashboardData> {
@@ -403,6 +450,8 @@ let mockSettings: SettingsData = {
   recordMedia: true,
   trimIdleTime: false,
   closeToTray: true,
+  focusAlert: true,
+  goalWeekdays: [0, 1, 2, 3, 4, 5, 6],
   storeDomainOnly: true,
   storeWindowTitles: true,
   retentionDays: 0,

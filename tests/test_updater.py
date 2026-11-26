@@ -1,3 +1,4 @@
+import hashlib
 import json
 import unittest
 from unittest.mock import MagicMock, patch
@@ -51,6 +52,11 @@ class CheckForUpdateTests(unittest.TestCase):
 
 
 class DownloadAndLaunchInstallerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # 업데이트 확인에서 받은 SHA-256 (fake-installer-bytes 의 것)
+        updater._expected_sha256["https://example.com/Setup.exe"] = hashlib.sha256(b"fake-installer-bytes").hexdigest()
+        self.addCleanup(updater._expected_sha256.clear)
+
     def test_missing_url_returns_error_without_network_call(self) -> None:
         with patch("time_manager.updater.urllib.request.urlopen") as mock_urlopen:
             result = updater.download_and_launch_installer("")

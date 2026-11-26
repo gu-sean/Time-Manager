@@ -10,6 +10,8 @@
   --tm-line: #f0ece3;
   --tm-cell-empty: #f0eee7;
   --tm-ring-track: #eeeae1;
+  /* 차트의 생산 분류 색 */
+  --tm-productive: #128c6e;
   width: 100%;
   height: 100vh;
   background: #f6f5f0;
@@ -36,15 +38,11 @@
 }
 
 .tm-brand-icon {
+  flex: none;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #c5734f, #9f4f36);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 17px;
-  box-shadow: 0 4px 10px -3px rgba(159, 79, 54, 0.5);
+  /* 그림의 둥근 모서리에 맞춘 그림자 */
+  filter: drop-shadow(0 3px 5px rgba(60, 54, 90, 0.35));
 }
 
 .tm-brand-name {
@@ -76,6 +74,15 @@
   font-weight: 700;
   color: #6e6759;
   cursor: pointer;
+}
+
+.tm-nav-icon {
+  flex: none;
+  opacity: 0.8;
+}
+
+.tm-nav-item.active .tm-nav-icon {
+  opacity: 1;
 }
 
 .tm-nav-item.active {
@@ -487,9 +494,179 @@
 }
 
 .tm-stat-delta {
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tm-muted);
+}
+
+.tm-stat-delta.tone-good { color: var(--tm-ok); }
+.tm-stat-delta.tone-bad { color: var(--tm-danger); }
+
+/* 사이드바: 얼마나 멈출지 고르기 */
+.tm-pause-choices {
+  margin: 0 0 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--tm-line);
+  border-radius: 12px;
+  background: var(--tm-card, #fcfbf8);
+}
+
+.tm-pause-title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--tm-ink-3);
+}
+
+.tm-pause-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 정리함: 직접 추가 */
+.tm-inbox-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-manual-form {
+  margin: 4px 0 12px;
+  padding: 12px;
+  border: 1px solid var(--tm-line);
+  border-radius: 10px;
+  background: #f6f3ec;
+}
+
+.tm-manual-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tm-manual-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 11px;
   font-weight: 700;
-  word-break: keep-all; /* "어제 같은 시각" 이 낱말 중간에서 끊기지 않게 함 */
+  color: var(--tm-ink-4);
+}
+
+.tm-manual-fields input[type='number'] { width: 80px; }
+.tm-manual-label { flex: 1; min-width: 180px; }
+
+.tm-manual-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tm-manual-actions .tm-note { flex: 1; }
+
+.tm-shell.dark .tm-manual-form { background: #262b25; }
+
+/* 되돌릴 수 없는 삭제 확인 */
+.tm-danger-offer {
+  border-color: var(--tm-danger);
+}
+
+.tm-btn-small.tm-btn-danger {
+  background: var(--tm-danger);
+  border-color: var(--tm-danger);
+  color: #fff;
+}
+
+.tm-period-delete {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tm-line);
+}
+
+/* 목표 요일 */
+.tm-weekday-picker {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.tm-weekday-chip {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--tm-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--tm-muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tm-weekday-chip.on {
+  border-color: var(--tm-productive);
+  background: var(--tm-productive);
+  color: #fff;
+}
+
+/* 보조 설명 글 */
+.tm-note {
+  font-size: 11px;
+  color: var(--tm-muted);
+}
+
+.tm-settings-help.tm-wide {
+  max-width: none;
+}
+
+/* 정리함: 선택한 기록 바로 아래의 작업 */
+.tm-row-actions {
+  margin: 2px 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--tm-line);
+  border-radius: 10px;
+  background: #f6f3ec;
+}
+
+.tm-row-actions-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tm-row-actions-label {
+  margin-right: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--tm-ink-4);
+}
+
+.tm-row-actions-spacer {
+  flex: 1;
+}
+
+.tm-row-actions .tm-rule-offer {
+  margin: 8px 0 0;
+}
+
+/* 고스트 버튼 색보다 우선 (밝은·어두운 테마) */
+.tm-btn-small.tm-btn-danger-text,
+.tm-shell.dark .tm-btn-small.tm-btn-danger-text {
+  color: var(--tm-danger);
+}
+
+.tm-shell.dark .tm-row-actions {
+  background: #262b25;
+}
+
+.tm-card-title-unit {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tm-muted);
 }
 
 .tm-flow-row {
@@ -2153,6 +2330,7 @@
 .tm-shell.dark .tm-rule-row,
 .tm-shell.dark .tm-top-app-icon,
 .tm-shell.dark .tm-top-app-bar-track,
+.tm-shell.dark .tm-top-activity-bar-track,
 .tm-shell.dark .tm-focus-mix-bar,
 .tm-shell.dark .tm-period-chip,
 .tm-shell.dark .tm-review-stat,

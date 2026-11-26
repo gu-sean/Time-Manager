@@ -74,6 +74,8 @@ class WindowsMonitor(PlatformMonitor):
         self._last_url: str | None = None
         # 주소를 마지막으로 읽은 (창, 앱, 제목): 같은 화면에서만 그 주소를 이어 씀
         self._url_page: tuple[int, str, str] | None = None
+        self._private_key: tuple[int, str] | None = None
+        self._private_value = False
         self.last_status = ""
 
     def get_active_target(self) -> ActiveTarget:
@@ -81,8 +83,26 @@ class WindowsMonitor(PlatformMonitor):
         title = _window_title(hwnd)
         process_path = _process_path(hwnd)
         app_name = Path(process_path).name if process_path else "Unknown"
+        if self._is_private(hwnd, app_name, title):
+            # 주소를 읽지 않음: 비공개 창의 내용은 어디에도 남기지 않음
+            self._last_browser_key = self._url_page = self._last_url = None
+            return ActiveTarget(app_name=app_name, window_title=title, process_id=_process_id(hwnd), private=True)
         url = self._browser_url(hwnd, app_name, title)
         return ActiveTarget(app_name=app_name, window_title=title, url=url, process_id=_process_id(hwnd))
+
+    def _is_private(self, hwnd: int, app_name: str, title: str) -> bool:
+        """비공개 창인지. 같은 창·제목이면 앞의 결과를 다시 씀."""
+        name = app_name.lower()
+        if name not in self.browser_processes:
+            return False
+        if _has_private_marker(title):
+            return True
+        if name == "firefox.exe":  # 제목에만 표시함
+            return False
+        key = (int(hwnd), title)
+        if key != self._private_key:
+            self._private_key, self._private_value = key, _private_root_view(hwnd)
+        return self._private_value
 
     def idle_seconds(self) -> int:
         last_input = LASTINPUTINFO()
@@ -131,6 +151,30 @@ class WindowsMonitor(PlatformMonitor):
         self._last_url = url
         self._url_page = key if url else None
         return url
+
+
+def _has_private_marker(text: str) -> bool:
+    """창 제목·영역 이름에 붙는 비공개 표시.
+
+    - Edge: "… - [InPrivate] - Microsoft Edge", Firefox: "… — Private Browsing"
+    - Chrome 계열은 제목에 없고 창 안쪽 영역 이름 끝에 "(시크릿 모드)" / "(Incognito)"
+    - 페이지 제목에 같은 낱말이 있어도 오인하지 않도록 위치까지 확인
+    """
+    lower = text.replace("\u200b", "").strip().lower()
+    return " - [inprivate] - " in lower or lower.endswith(
+        ("(시크릿 모드)", "(incognito)", "(inprivate)", "private browsing", "사생활 보호 모드")
+    )
+
+
+def _private_root_view(hwnd: int) -> bool:
+    """Chrome 계열: 창 바로 아래 영역의 이름으로 비공개 창인지 확인."""
+    try:
+        import uiautomation as auto
+
+        _initialize_com()
+        return any(_has_private_marker(child.Name or "") for child in auto.ControlFromHandle(hwnd).GetChildren())
+    except Exception:  # 확인하지 못하면 일반 창으로 봄
+        return False
 
 
 def _window_title(hwnd: int) -> str:

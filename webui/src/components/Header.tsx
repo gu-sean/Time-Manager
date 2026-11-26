@@ -1,3 +1,5 @@
+import Icon from './Icon';
+
 interface HeaderProps {
   title: string;
   subtitle: string;
@@ -42,7 +44,7 @@ export default function Header({
             aria-label={notificationsEnabled ? '알림 끄기' : '알림 켜기'}
             title={notificationsEnabled ? '알림 끄기' : '알림 켜기'}
           >
-            {notificationsEnabled ? '🔔' : '🔕'}
+            <Icon name={notificationsEnabled ? 'bell' : 'bellOff'} />
           </button>
           <button
             className={`tm-ghost-btn${theme === 'dark' ? ' active' : ''}`}
@@ -51,13 +53,13 @@ export default function Header({
             aria-label={theme === 'dark' ? '라이트 모드' : '다크 모드'}
             title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
           </button>
         </div>
         {showDate && (
           <div className="tm-date-pill" role="group" aria-label="날짜 선택">
             <button className="tm-date-pill-btn" type="button" onClick={onPrevDay} aria-label="이전 날" title="이전 날">
-              ‹
+              <Icon name="chevronLeft" size={16} />
             </button>
             <button
               className="tm-date-pill-label"
@@ -66,7 +68,7 @@ export default function Header({
               aria-label={`${dateLabel}, 누르면 오늘로 이동`}
               title="오늘로 이동"
             >
-              <span aria-hidden="true">📅</span>
+              <Icon name="calendar" size={15} />
               <span>{dateLabel}</span>
             </button>
             <button
@@ -77,7 +79,7 @@ export default function Header({
               aria-label="다음 날"
               title="다음 날"
             >
-              ›
+              <Icon name="chevronRight" size={16} />
             </button>
           </div>
         )}

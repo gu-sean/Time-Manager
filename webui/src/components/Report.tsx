@@ -2,7 +2,7 @@ import { useState } from 'react';
 import AskCard from './AskCard';
 import Heatmap from './charts/Heatmap';
 import TrendChart from './charts/TrendChart';
-import { formatDuration, shortDate } from '../time';
+import { formatDuration, formatHours, shortDate } from '../time';
 import type { ReportData } from '../types';
 
 const DAILY_PAGE_SIZE = 10;
@@ -22,7 +22,7 @@ function ScoreRing({ pct }: { pct: number }) {
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
-          background: `conic-gradient(#BA6A49 0% ${pct}%, var(--tm-ring-track) ${pct}% 100%)`,
+          background: `conic-gradient(var(--tm-productive) 0% ${pct}%, var(--tm-ring-track) ${pct}% 100%)`,
         }}
       />
       <div className="tm-score-ring-center">
@@ -79,7 +79,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
             aria-label="시작 날짜"
             type="date"
             className="tm-select"
-            style={{ fontSize: 12, height: 28, padding: '0 6px' }}
+            style={{ fontSize: 12, height: 28, padding: '0 6px', width: 132 }}
             value={rangeStart}
             max={today}
             onChange={(e) => setRangeStart(e.target.value)}
@@ -89,7 +89,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
             aria-label="끝 날짜"
             type="date"
             className="tm-select"
-            style={{ fontSize: 12, height: 28, padding: '0 6px' }}
+            style={{ fontSize: 12, height: 28, padding: '0 6px', width: 132 }}
             value={rangeEnd}
             max={today}
             onChange={(e) => setRangeEnd(e.target.value)}
@@ -140,12 +140,12 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
 
         <div className="tm-card">
           <div className="tm-card-title" style={{ marginBottom: 8 }}>
-            요일별 생산 시간 (합계)
+            요일별 생산 시간 <span className="tm-card-title-unit">(합계, 시간)</span>
           </div>
           <div className="tm-weekday-chart">
             {data.weekdayBars.map((bar) => (
               <div className="tm-weekday-col" key={bar.day}>
-                <span className="tm-weekday-time">{formatDuration(bar.seconds)}</span>
+                <span className="tm-weekday-time" title={formatDuration(bar.seconds)}>{formatHours(bar.seconds)}</span>
                 <div className="tm-weekday-bar-track">
                   <div
                     className="tm-weekday-bar"
@@ -156,7 +156,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--tm-ink-4)', marginTop: 8 }}>{data.weekdayText}</div>
+          <div style={{ fontSize: 11, color: 'var(--tm-ink-4)', marginTop: 8, wordBreak: 'keep-all' }}>{data.weekdayText}</div>
         </div>
       </div>
 
@@ -206,7 +206,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
               >
                 ‹ 이전
               </button>
-              <span style={{ fontSize: 11, color: 'var(--tm-muted)' }}>
+              <span className="tm-note">
                 {dailyPage + 1} / {totalPages}
               </span>
               <button

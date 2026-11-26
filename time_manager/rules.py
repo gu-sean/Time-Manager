@@ -76,6 +76,8 @@ class RuleClassifier:
     excluded_apps: tuple[str, ...]
     productive_apps: tuple[str, ...]
     unproductive_apps: tuple[str, ...]
+    # 기록하지 않는 사이트 (하위 도메인 포함)
+    excluded_domains: tuple[str, ...] = ()
 
     @classmethod
     def from_file(cls, path: Path) -> "RuleClassifier":
@@ -92,6 +94,7 @@ class RuleClassifier:
             excluded_apps=tuple(rules.get("excluded_apps", [])),
             productive_apps=tuple(rules.get("productive_apps", [])),
             unproductive_apps=tuple(rules.get("unproductive_apps", [])),
+            excluded_domains=tuple(_domain_from_url(item) or item.lower() for item in rules.get("excluded_domains", [])),
         )
 
     def to_dict(self) -> dict[str, list[str]]:
@@ -104,6 +107,7 @@ class RuleClassifier:
             "excluded_apps": list(self.excluded_apps),
             "productive_apps": list(self.productive_apps),
             "unproductive_apps": list(self.unproductive_apps),
+            "excluded_domains": list(self.excluded_domains),
         }
 
     def classify(self, target: ActiveTarget) -> ClassifiedActivity:
@@ -170,7 +174,26 @@ def load_rules(path: Path) -> dict[str, list[str]]:
     if not isinstance(data, dict):
         _quarantine_corrupt_rules(path)
         return {}
-    return _normalize_rules(data)
+    return _move_domain_exclusions(_normalize_rules(data))
+
+
+def _move_domain_exclusions(rules: dict[str, list[str]]) -> dict[str, list[str]]:
+    """이전 버전이 "도메인 + 기록 제외"를 앱 이름 목록에 넣은 것을 사이트 목록으로 옮김.
+
+    - 그대로 두면 앱 이름과만 비교돼 그 사이트가 계속 기록됨
+    """
+    apps = rules.get("excluded_apps", [])
+    moved = [item for item in apps if _looks_like_domain(item)]
+    if moved:
+        rules["excluded_apps"] = [item for item in apps if item not in moved]
+        domains = rules.setdefault("excluded_domains", [])
+        domains.extend(item for item in moved if item not in domains)
+    return rules
+
+
+def _looks_like_domain(value: str) -> bool:
+    lower = value.strip().lower()
+    return "." in lower and " " not in lower and not lower.endswith(".exe")
 
 
 def _normalize_rules(data: dict[str, object]) -> dict[str, list[str]]:
@@ -219,7 +242,7 @@ def _raise_for_rule_conflict(rules: dict[str, list[str]], rule_key: str, value: 
 
 def _conflicting_rule_keys(rule_key: str) -> tuple[str, ...]:
     groups = (
-        ("productive_domains", "unproductive_domains"),
+        ("productive_domains", "unproductive_domains", "excluded_domains"),
         ("productive_title_keywords", "unproductive_title_keywords", "neutral_title_keywords"),
         ("productive_apps", "unproductive_apps", "excluded_apps"),
     )
@@ -296,7 +319,7 @@ def rule_key_for_selection(rule_type: str, category: str) -> str:
     if category == "중립":
         return "neutral_title_keywords"
     if category == "기록 제외":
-        return "excluded_apps"
+        return "excluded_domains" if rule_type == "도메인" else "excluded_apps"
     prefix = "productive" if category == "생산적" else "unproductive"
     if rule_type == "도메인":
         return f"{prefix}_domains"

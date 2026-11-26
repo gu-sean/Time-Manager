@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { AIModelList, AIProvider, AIService, AISettingsInput, AITestResult, InstallUpdateResult, SettingsData, TrackingOptions, UpdateInfo } from '../types';
+import { deletePeriod, previewDeletePeriod } from '../api';
+import type { AIModelList, AIProvider, AIService, AISettingsInput, AITestResult, DeletePreview, InstallUpdateResult, SettingsData, TrackingOptions, UpdateInfo } from '../types';
 import Toggle from './Toggle';
 import PresetSection from './PresetSection';
 import type { PresetHandlers } from './PresetSection';
@@ -23,6 +24,7 @@ interface SettingsProps {
   onToggleAutoBackup: (enabled: boolean) => void;
   onToggleStartup: (enabled: boolean) => void;
   onSaveTracking: (changes: TrackingOptions) => void;
+  onRecordsDeleted: (message: string) => void;
   onToggleNotifications: (enabled: boolean) => void;
   onToggleTheme: (theme: 'light' | 'dark') => void;
   onSetProfile: (profile: string) => void;
@@ -99,7 +101,7 @@ function ApiKeyField({
           </button>
         )}
       </div>
-      <div className="tm-settings-help" style={{ maxWidth: 'none', marginBottom: 10 }}>
+      <div className="tm-settings-help tm-wide" style={{ marginBottom: 10 }}>
         키는 Windows 자격 증명 관리자에 저장되며, 설정 파일이나 화면에는 다시 표시되지 않습니다.
       </div>
     </>
@@ -147,7 +149,7 @@ function ServiceForm({
 
   return (
     <>
-      <div className="tm-settings-help" style={{ maxWidth: 'none', marginBottom: 10 }}>
+      <div className="tm-settings-help tm-wide" style={{ marginBottom: 10 }}>
         {service.help}
       </div>
 
@@ -170,7 +172,7 @@ function ServiceForm({
               }}
             />
           </div>
-          <div className="tm-settings-help" style={{ maxWidth: 'none', marginBottom: 10 }}>
+          <div className="tm-settings-help tm-wide" style={{ marginBottom: 10 }}>
             내 PC(localhost)가 아닌 서버는 https만 사용할 수 있어요.
           </div>
         </>
@@ -312,7 +314,7 @@ function AiSettingsCard({
       </div>
 
       {view === 'local' && (
-        <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+        <div className="tm-settings-help tm-wide">
           분류 추천은 이 PC의 분류 기록·규칙·직업 프리셋을 학습해 만듭니다. 기록이 적으면 추천이 적게 나오며,
           확실하지 않은 항목은 추천하지 않아요. 코칭은 통계를 바탕으로 한 분석입니다.
         </div>
@@ -426,6 +428,57 @@ function AiExclusionCard({
   );
 }
 
+const WEEKDAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
+
+/** 기간의 기록을 완전히 지움: 건수를 먼저 보여 주고 한 번 더 확인. */
+function PeriodDelete({ onDeleted }: { onDeleted: (message: string) => void }) {
+  const today = new Date();
+  const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const [start, setStart] = useState(iso);
+  const [end, setEnd] = useState(iso);
+  const [preview, setPreview] = useState<DeletePreview | null>(null);
+  const [error, setError] = useState('');
+  const check = async () => {
+    const result = await previewDeletePeriod(start, end);
+    setError(result.error);
+    setPreview(result.error ? null : result);
+  };
+  const remove = async () => {
+    const result = await deletePeriod(start, end);
+    setPreview(null);
+    setError(result.error);
+    if (!result.error) onDeleted(result.message);
+  };
+  return (
+    <div className="tm-period-delete">
+      <span className="tm-settings-field-label">기간 기록 삭제</span>
+      <div className="tm-settings-field-row" style={{ alignItems: 'center', gap: 6 }}>
+        <input className="tm-select" type="date" aria-label="삭제 시작 날짜" max={iso} value={start} style={{ width: 132 }}
+          onChange={(e) => { setStart(e.target.value); setPreview(null); }} />
+        <span style={{ color: 'var(--tm-muted)' }}>–</span>
+        <input className="tm-select" type="date" aria-label="삭제 끝 날짜" max={iso} value={end} style={{ width: 132 }}
+          onChange={(e) => { setEnd(e.target.value); setPreview(null); }} />
+        <button className="tm-btn-small tm-btn-ghost" type="button" onClick={check}>지울 기록 확인</button>
+      </div>
+      {error && <div className="tm-rule-error" role="alert" style={{ margin: '8px 0 0' }}>{error}</div>}
+      {preview && (
+        <div className="tm-rule-offer tm-danger-offer" role="alert">
+          <span>
+            {preview.count ? `기록 ${preview.count}건(${preview.timeLabel})을 완전히 지워요. 되돌릴 수 없어요.` : '이 기간에는 지울 기록이 없어요.'}
+          </span>
+          <span style={{ display: 'flex', gap: 6 }}>
+            {preview.count > 0 && (
+              <button className="tm-btn-small tm-btn-danger" type="button" onClick={remove}>완전히 삭제</button>
+            )}
+            <button className="tm-btn-small tm-btn-ghost" type="button" onClick={() => setPreview(null)}>취소</button>
+          </span>
+        </div>
+      )}
+      <div className="tm-settings-help tm-wide">이미 만들어진 백업 파일에 든 기록은 그 파일에 남아요.</div>
+    </div>
+  );
+}
+
 function TrackingCard({ data, onSave }: { data: SettingsData; onSave: (changes: TrackingOptions) => void }) {
   const [idleMinutes, setIdleMinutes] = useState<number | ''>(data.idleMinutes);
   const [syncedWith, setSyncedWith] = useState(data.idleMinutes);
@@ -434,7 +487,7 @@ function TrackingCard({ data, onSave }: { data: SettingsData; onSave: (changes: 
     setIdleMinutes(data.idleMinutes);
   }
 
-  const options: Array<{ key: 'closeToTray' | 'recordMedia' | 'trimIdleTime'; label: string; help: string }> = [
+  const options: Array<{ key: 'closeToTray' | 'recordMedia' | 'trimIdleTime' | 'focusAlert'; label: string; help: string }> = [
     {
       key: 'closeToTray',
       label: '창을 닫아도 계속 기록',
@@ -449,6 +502,11 @@ function TrackingCard({ data, onSave }: { data: SettingsData; onSave: (changes: 
       key: 'trimIdleTime',
       label: '자리를 비운 시간 빼기',
       help: '자리 비움이 되면 마지막 입력 뒤에 기록한 시간도 지워요. 입력 없이 글을 읽은 시간도 함께 빠져요.',
+    },
+    {
+      key: 'focusAlert',
+      label: '집중 중 방해 알림',
+      help: '집중 타이머가 도는 동안 비생산 활동이 15초 넘게 이어지면 알려요. 알림 표시를 꺼 둬도 알려요.',
     },
   ];
 
@@ -518,6 +576,7 @@ export default function Settings({
   onListAiModels,
   onAddAiExclusion,
   onRemoveAiExclusion,
+  onRecordsDeleted,
 }: SettingsProps) {
   const [csvPeriod, setCsvPeriod] = useState(PERIOD_OPTIONS[0]);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -582,7 +641,10 @@ export default function Settings({
   });
 
   // 버튼마다 자기 항목만 전송, 나머지는 저장된 값 유지
-  const saveGoals = () => onSave({ ...form, retentionDays: data.retentionDays });
+  const [goalDays, setGoalDays] = useState<number[]>(data.goalWeekdays);
+  const toggleGoalDay = (day: number) =>
+    setGoalDays((days) => (days.includes(day) ? days.filter((item) => item !== day) : [...days, day].sort()));
+  const saveGoals = () => onSave({ ...form, retentionDays: data.retentionDays, goalWeekdays: goalDays });
   const savePrivacy = (changes: Record<string, unknown>) =>
     onSave({ ...saved, storeDomainOnly: data.storeDomainOnly, storeWindowTitles: data.storeWindowTitles, ...changes });
 
@@ -657,7 +719,7 @@ export default function Settings({
           <div className="tm-settings-field-row">
             <input id="unproductive-limit" className="tm-settings-number-input" type="number" min={1} {...field('unproductiveLimitMinutes')} />
           </div>
-          <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+          <div className="tm-settings-help tm-wide">
             알림: 비생산 활동이 쉬지 않고 이만큼 이어질 때(1분 이하의 다른 창 전환은 이어진 것으로 봐요). 코칭: 하루에 쓴
             합계가 이 값을 넘었는지 알려줘요.
           </div>
@@ -667,9 +729,24 @@ export default function Settings({
             <span style={{ color: 'var(--tm-muted)' }}>–</span>
             <input className="tm-settings-number-input" type="number" aria-label="근무 종료 시각" min={1} max={24} {...field('workEndHour')} />
           </div>
-          <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+          <div className="tm-settings-help tm-wide">
             종료 시각에 하루 마무리 알림을 보내요. 시작 시각은 개인 모델 코칭의 참고 정보로만 써요.
           </div>
+          <span className="tm-settings-field-label">일간 목표 요일</span>
+          <div className="tm-weekday-picker" role="group" aria-label="일간 목표 요일">
+            {WEEKDAY_NAMES.map((name, day) => (
+              <button
+                key={name}
+                className={`tm-weekday-chip${goalDays.includes(day) ? ' on' : ''}`}
+                type="button"
+                aria-pressed={goalDays.includes(day)}
+                onClick={() => toggleGoalDay(day)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <div className="tm-settings-help tm-wide">고르지 않은 요일은 목표 진행률·달성 알림·주간 달성일에서 빠져요.</div>
           <button className="tm-btn-small tm-btn-primary" type="button" style={{ marginTop: 12 }} onClick={saveGoals}>
             목표 저장
           </button>
@@ -705,7 +782,7 @@ export default function Settings({
           <div className="tm-settings-row">
             <div>
               <span className="tm-settings-row-label">Windows 시작 시 자동 실행</span>
-              <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 1 }}>로그인하면 창 없이 트레이에서 기록을 시작해요.</div>
+              <div className="tm-note" style={{ marginTop: 1 }}>로그인하면 창 없이 트레이에서 기록을 시작해요.</div>
             </div>
             <Toggle label="Windows 시작 시 자동 실행" checked={data.startupEnabled} onChange={onToggleStartup} />
           </div>
@@ -735,14 +812,14 @@ export default function Settings({
           <div className="tm-settings-row" style={{ borderTop: '1px solid var(--tm-line)' }}>
             <div>
               <div className="tm-settings-row-label">URL은 도메인만 저장</div>
-              <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 1 }}>전체 경로·검색어 대신 도메인만 기록해요. 바꾼 뒤의 기록부터 적용돼요.</div>
+              <div className="tm-note" style={{ marginTop: 1 }}>전체 경로·검색어 대신 도메인만 기록해요. 바꾼 뒤의 기록부터 적용돼요.</div>
             </div>
             <Toggle label="URL은 도메인만 저장" checked={data.storeDomainOnly} onChange={(v) => savePrivacy({ storeDomainOnly: v })} />
           </div>
           <div className="tm-settings-row">
             <div>
               <div className="tm-settings-row-label">창 제목 저장</div>
-              <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 1 }}>문서·탭 제목까지 기록해요.</div>
+              <div className="tm-note" style={{ marginTop: 1 }}>문서·탭 제목까지 기록해요.</div>
             </div>
             <Toggle label="창 제목 저장" checked={data.storeWindowTitles} onChange={(v) => savePrivacy({ storeWindowTitles: v })} />
           </div>
@@ -752,7 +829,7 @@ export default function Settings({
           <div className="tm-settings-field-row">
             <input id="retention-days" className="tm-settings-number-input" type="number" min={0} style={{ flex: 'none', width: 90 }} {...field('retentionDays')} />
           </div>
-          <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+          <div className="tm-settings-help tm-wide">
             0이 아니면, 보존 기간이 지난 기록은 앱을 시작할 때와 켜 둔 채 날짜가 바뀔 때 삭제돼요.
           </div>
           <button className="tm-btn-small tm-btn-primary" type="button" style={{ marginTop: 12 }} onClick={saveRetention}>
@@ -764,6 +841,7 @@ export default function Settings({
               먼저 백업을 내보내세요. 계속하려면 버튼을 한 번 더 누르세요.
             </div>
           )}
+          <PeriodDelete onDeleted={onRecordsDeleted} />
         </div>
         <div className="tm-card">
           <div className="tm-card-title" style={{ marginBottom: 10 }}>
@@ -797,7 +875,7 @@ export default function Settings({
               백업 복원
             </button>
           </div>
-          <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+          <div className="tm-settings-help tm-wide">
             복원하면 활동 기록·규칙·설정이 백업 시점으로 바뀝니다. 복원 직전 상태는 자동으로 따로 보관해요.
           </div>
         </div>
@@ -858,7 +936,7 @@ export default function Settings({
 
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--tm-line)' }}>
             <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--tm-ink-3)', marginBottom: 6 }}>문제 신고</div>
-            <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginBottom: 8 }}>
+            <div className="tm-note" style={{ marginBottom: 8 }}>
               버그를 발견하셨나요? 로그를 내보내고 구글폼에 신고해주세요.
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>

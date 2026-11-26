@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from time_manager import ai as _ai
+from time_manager.formatting import _format_seconds
 from time_manager.rules import RuleClassifier
 from time_manager.settings import AppSettings
 
@@ -113,6 +114,32 @@ class BackupMixin(WebApiBase):
         if start_day > end_day:
             return {"message": "시작일이 종료일보다 늦을 수 없습니다."}
         return self._export_csv_file(start_day, end_day, f"activity-{start_day.isoformat()}-{end_day.isoformat()}.csv")
+
+    def _period(self, start_iso: str, end_iso: str) -> tuple[date, date] | str:
+        try:
+            start_day = _clamp_day(date.fromisoformat(start_iso))
+            end_day = _clamp_day(date.fromisoformat(end_iso))
+        except (TypeError, ValueError):
+            return "날짜 형식이 올바르지 않습니다."
+        if start_day > end_day:
+            return "시작일이 종료일보다 늦을 수 없습니다."
+        return start_day, end_day
+
+    def preview_delete_period(self, start_iso: str, end_iso: str) -> dict[str, Any]:
+        period = self._period(start_iso, end_iso)
+        if isinstance(period, str):
+            return {"error": period, "count": 0, "timeLabel": ""}
+        count, seconds = self.store.count_period(*period)
+        return {"error": "", "count": count, "timeLabel": _format_seconds(seconds)}
+
+    def delete_period(self, start_iso: str, end_iso: str) -> dict[str, str]:
+        """기간의 기록을 완전히 지움 (자동 백업에 이미 들어간 기록은 그 백업에 남음)."""
+        period = self._period(start_iso, end_iso)
+        if isinstance(period, str):
+            return {"message": "", "error": period}
+        removed = self.store.delete_period(*period)
+        start_day, end_day = period
+        return {"message": f"{start_day.isoformat()}~{end_day.isoformat()} 기록 {removed}건을 완전히 지웠어요.", "error": ""}
 
     def export_backup(self) -> dict[str, Any]:
         manager = self._backup_manager()

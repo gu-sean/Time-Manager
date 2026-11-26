@@ -180,6 +180,12 @@ class BackupManager:
             target = sqlite3.connect(snapshot)
             try:
                 original.backup(target)
+                # 사용자가 지운 기록은 백업에 넣지 않음
+                columns = {row[1] for row in target.execute("PRAGMA table_info(activity_events)")}
+                if "deleted_at" in columns:
+                    target.execute("DELETE FROM activity_events WHERE deleted_at IS NOT NULL")
+                    target.commit()
+                    target.execute("VACUUM")
             finally:
                 target.close()
                 original.close()

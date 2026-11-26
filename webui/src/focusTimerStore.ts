@@ -1,7 +1,7 @@
 // 타이머는 대시보드 밖에 둠: 다른 화면으로 가도 초기화되지 않음
 // 매번 1초씩 빼지 않고 종료 시각 기준으로 계산
 // (최소화한 창은 타이머 실행이 늦어짐)
-import { sendFocusNotification } from './api';
+import { sendFocusNotification, setFocusSession } from './api';
 
 export const FOCUS_PRESETS = [15, 25, 50];
 const DEFAULT_FOCUS_MINUTES = 25;
@@ -25,11 +25,18 @@ let state: FocusTimerState = {
 };
 const listeners = new Set<() => void>();
 let ticker: number | undefined;
+let reportedFocusEnd: number | null = null;
 let alarm: number | undefined;
 
 function update(patch: Partial<FocusTimerState>) {
   state = { ...state, ...patch };
   listeners.forEach((listener) => listener());
+  // 앱이 집중 중의 비생산 활동을 알릴 수 있게 함 (쉬는 시간·멈춤이면 해제)
+  const focusEndsAt = state.phase === 'focus' ? state.endsAt : null;
+  if (focusEndsAt !== reportedFocusEnd) {
+    reportedFocusEnd = focusEndsAt;
+    void setFocusSession(focusEndsAt).catch(() => undefined);
+  }
 }
 
 function stopClocks() {

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- 작은 크기 (트레이, 16~24px): 아래 줄을 빼고 해와 바늘을 크게 -->
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34407A"/><stop offset="0.62" stop-color="#D9735A"/><stop offset="1" stop-color="#C45A3F"/></linearGradient></defs>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#sky)"/>
+  <path d="M30 164 A 98 98 0 0 1 226 164 Z" fill="#FFF4D6"/>
+  <path d="M120 92 V144 H176" fill="none" stroke="#A93F2E" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="30" y="180" width="196" height="30" rx="15" fill="#FFF4D6"/>
+</svg>

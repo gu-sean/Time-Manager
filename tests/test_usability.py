@@ -136,7 +136,7 @@ def test_the_dashboard_shows_the_daily_goal(api):
 
     goal = api.get_dashboard()["goal"]
 
-    assert (goal["value"], goal["pct"], goal["achieved"], goal["remaining"]) == ("45분 / 1시간 0분", 75, False, "15분")
+    assert (goal["value"], goal["pct"], goal["achieved"], goal["remaining"]) == ("45분 / 1시간", 75, False, "15분")
 
 
 def test_a_goal_is_not_shown_as_full_before_it_is_reached(api):

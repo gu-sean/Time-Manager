@@ -22,6 +22,8 @@ _SW_RESTORE = 9
 _EVENT_MODIFY_STATE = 0x0002
 _WAIT_OBJECT_0 = 0
 _ASFW_ANY = -1
+# 값이 클수록 먼저 종료 통지를 받음. 기본값 0x280, 0x300~0x3FF 는 "먼저 종료" 애플리케이션 구간
+_SHUTDOWN_LEVEL = 0x300
 _log = logging.getLogger(__name__)
 
 
@@ -115,6 +117,29 @@ def announce_to_installer() -> int | None:
     if not sys.platform.startswith("win"):
         return None
     return _kernel32().CreateMutexW(None, False, INSTALLER_MUTEX) or None
+
+
+def end_before_launcher() -> bool:
+    """Windows 종료 때 exe 의 부모 프로세스보다 먼저 통지받도록 함. 설치본에서 호출.
+
+    - 파일 하나로 묶은 exe 는 부모(압축 해제)와 자식(앱) 두 프로세스
+    - 부모가 먼저 통지받으면 앱을 곧 끝냄 → DB 를 암호화하지 못하고 평문이 남음
+    """
+    if not sys.platform.startswith("win"):
+        return False
+    from ctypes import wintypes
+
+    library = ctypes.WinDLL("kernel32", use_last_error=True)
+    library.SetProcessShutdownParameters.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    level, flags = wintypes.DWORD(), wintypes.DWORD()
+    applied = bool(library.SetProcessShutdownParameters(_SHUTDOWN_LEVEL, 0)) and bool(
+        library.GetProcessShutdownParameters(ctypes.byref(level), ctypes.byref(flags))
+    )
+    if not applied or level.value != _SHUTDOWN_LEVEL:
+        _log.warning("could not set the shutdown order (error %d)", ctypes.get_last_error())
+        return False
+    _log.info("shutdown order set: level 0x%x", level.value)
+    return True
 
 
 def request_show(data_dir: Path) -> bool:

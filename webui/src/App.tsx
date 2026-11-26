@@ -20,6 +20,7 @@ import {
   getReview,
   getRules,
   getSettings,
+  pauseTracking,
   setTheme,
   toggleNotifications,
   toggleTracking,
@@ -226,6 +227,11 @@ function App() {
     setToast(nextTheme === 'dark' ? '다크 모드를 켰습니다.' : '라이트 모드로 변경했습니다.');
   }, [theme]);
 
+  const handlePause = useCallback(async (minutes: number | null) => {
+    setDashboard(await pauseTracking(minutes));
+    setToast(minutes ? `${minutes >= 60 ? `${minutes / 60}시간` : `${minutes}분`} 동안 기록을 멈춰요.` : '기록을 멈췄어요. 스위치를 켜면 다시 기록해요.');
+  }, []);
+
   const handleToggleTracking = useCallback(async () => {
     setDashboard(await toggleTracking());
   }, []);
@@ -263,12 +269,15 @@ function App() {
         tracking={dashboard?.tracking ?? false}
         dashboard={dashboard}
         onToggleTracking={handleToggleTracking}
+        onPause={handlePause}
         appVersion={settings?.appVersion}
       />
       <main className="tm-main">
         <Header
           title={meta.title}
-          subtitle={meta.sub}
+          subtitle={
+            activePage === 'dashboard' && dashboard ? `${meta.sub} · ▲▼ ${dashboard.comparedWith} 대비` : meta.sub
+          }
           dateLabel={dashboard?.dateLabel ?? '오늘'}
           viewingToday={dashboard?.viewingToday ?? true}
           notificationsEnabled={notificationsEnabled}
@@ -315,6 +324,8 @@ function App() {
               onRestore={inboxHandlers.handleRestore}
               onReclassify={inboxHandlers.handleReclassify}
               onAddRule={inboxHandlers.handleAddRule}
+              onDeleteTarget={inboxHandlers.handleDeleteTarget}
+              onAddManual={inboxHandlers.handleAddManual}
             />
           )}
           {activePage === 'review' && review && (
@@ -382,6 +393,11 @@ function App() {
               onListAiModels={settingsHandlers.handleListAiModels}
               onAddAiExclusion={settingsHandlers.handleAddAiExclusion}
               onRemoveAiExclusion={settingsHandlers.handleRemoveAiExclusion}
+              onRecordsDeleted={(message) => {
+                setInbox(null);
+                handleRecordsChanged();
+                setToast(message);
+              }}
             />
           )}
           </ErrorBoundary>

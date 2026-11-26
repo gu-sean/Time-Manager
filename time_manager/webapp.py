@@ -59,7 +59,8 @@ def run_webview(
     tray = TrayController(
         window,
         tracker,
-        bundled_root(project_root) / "assets" / "icon.ico",
+        # pystray 는 받은 그림을 트레이 크기로 줄임 → .ico(큰 그림 기준) 대신 작은 크기용 그림을 전달
+        bundled_root(project_root) / "assets" / "tray.png",
         close_to_tray=lambda: api.settings.close_to_tray,
         take_first_hint=take_first_hint,
         on_session_end=secure_data,

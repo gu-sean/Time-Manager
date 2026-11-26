@@ -10,6 +10,12 @@ export function formatDuration(seconds: number): string {
   return minutes === 0 ? `${hours}시간` : `${hours}시간 ${minutes}분`;
 }
 
+/** 좁은 자리의 시간 수 (예: 3시간 33분 → "3.6", 45분 → "0.8"). 단위는 제목에 표시. */
+export function formatHours(seconds: number): string {
+  if (seconds <= 0) return '0';
+  return String(Math.max(0.1, Math.round(seconds / 360) / 10));
+}
+
 /** 남은 시간 표시 (예: "04:09"). */
 export function formatClock(seconds: number): string {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;

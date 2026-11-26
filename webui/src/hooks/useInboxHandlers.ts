@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
-import { addRuleForEvent, deleteEvent, getInbox, reclassifyEvent, restoreDeletedEvent } from '../api';
-import type { InboxData } from '../types';
+import { addManualEntry, addRuleForEvent, deleteEvent, deleteTargetRecords, getInbox, reclassifyEvent, restoreDeletedEvent } from '../api';
+import type { InboxData, ManualEntry } from '../types';
 
 export function useInboxHandlers(
   selectedDayRef: RefObject<string>,
@@ -17,7 +17,7 @@ export function useInboxHandlers(
     const mine = ++latest.current;
     const next = await getInbox(query, category, selectedDayRef.current);
     if (latest.current === mine) setInbox(next);
-  }, []);
+  }, [selectedDayRef, setInbox]);
 
   const handleSearch = useCallback((query: string, category: string | null) => search(query, category), [search]);
 
@@ -51,5 +51,23 @@ export function useInboxHandlers(
     setToast(result.error || result.message);
   };
 
-  return { handleSearch, handleClearSearch, handleDelete, handleRestore, handleReclassify, handleAddRule };
+  const handleDeleteTarget = async (eventId: number) => {
+    const result = await deleteTargetRecords(eventId);
+    await reloadView();
+    setToast(result.error || result.message);
+  };
+
+  /** 문제가 있으면 그 문구, 추가했으면 "" */
+  const handleAddManual = async (entry: ManualEntry): Promise<string> => {
+    const result = await addManualEntry(selectedDayRef.current, entry.start, entry.minutes, entry.label, entry.category);
+    if (result.error) return result.error;
+    await reloadView();
+    setToast(result.message);
+    return '';
+  };
+
+  return {
+    handleSearch, handleClearSearch, handleDelete, handleRestore, handleReclassify, handleAddRule,
+    handleDeleteTarget, handleAddManual,
+  };
 }

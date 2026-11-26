@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- 앱 아이콘 (32px 이상): 지는 해를 시계 문자판으로 -->
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34407A"/><stop offset="0.62" stop-color="#D9735A"/><stop offset="1" stop-color="#C45A3F"/></linearGradient></defs>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#sky)"/>
+  <path d="M50 160 A 78 78 0 1 1 206 160 Z" fill="#FFF4D6"/>
+  <path d="M128 112 V152 L162 132" fill="none" stroke="#B8503C" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="34" y="171" width="188" height="17" rx="8.5" fill="#FFF4D6"/>
+  <rect x="66" y="199" width="124" height="14" rx="7" fill="#FFF4D6" fill-opacity="0.65"/>
+</svg>

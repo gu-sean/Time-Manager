@@ -38,6 +38,7 @@ def _bootstrap(project_root: Path):
     settings = settings_store.load_or_create()
     store = ActivityStore(data_dir / "activity.sqlite3")
     store.purge_older_than(settings.retention_days)
+    store.purge_deleted()
     classifier = RuleClassifier.from_file(rules_path)
     tracker = ActivityTracker(
         store=store,
@@ -47,6 +48,8 @@ def _bootstrap(project_root: Path):
         unproductive_alert_seconds=settings.unproductive_limit_minutes * 60,
         work_end_hour=settings.work_end_hour,
         daily_goal_seconds=settings.daily_goal_minutes * 60,
+        goal_weekdays=frozenset(settings.goal_weekdays),
+        focus_alert_enabled=settings.focus_alert_enabled,
         idle_threshold_seconds=settings.idle_minutes * 60,
         record_media=settings.record_media,
         trim_idle_time=settings.trim_idle_time,
@@ -69,6 +72,7 @@ def run_webview(project_root: Path, *, start_hidden: bool = False) -> None:
         return
     if is_frozen():  # 설치본만: 소스로 실행 중이라는 이유로 설치를 막지 않음
         single_instance.announce_to_installer()
+        single_instance.end_before_launcher()
     try:
         _run(project_root, data_dir, instance, start_hidden)
     finally:

@@ -311,8 +311,8 @@ def test_no_tray_window_refuses_to_end_the_session(tmp_path):
     from ctypes import wintypes
     from pathlib import Path
 
-    tray = _tray(tmp_path, tracker=SimpleNamespace(is_paused=False))  # 메뉴를 만들 때 읽음
-    tray.icon_path = Path(__file__).resolve().parents[1] / "assets" / "icon.ico"
+    tray = _tray(tmp_path, tracker=SimpleNamespace(is_running=True, is_paused=False))  # 메뉴를 만들 때 읽음
+    tray.icon_path = Path(__file__).resolve().parents[1] / "assets" / "tray.png"
     ended = []
     tray._on_session_end = lambda: ended.append(True)
     tray.start()
@@ -394,12 +394,62 @@ def test_running_again_asks_the_first_instance_to_show_itself(tmp_path):
     assert not single_instance.request_show(folder)
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows only")
+def test_the_app_is_told_about_a_shutdown_before_its_launcher():
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32")
+    level, flags = wintypes.DWORD(), wintypes.DWORD()
+    assert kernel.GetProcessShutdownParameters(ctypes.byref(level), ctypes.byref(flags))
+    original = (level.value, flags.value)
+    try:
+        assert single_instance.end_before_launcher()
+        kernel.GetProcessShutdownParameters(ctypes.byref(level), ctypes.byref(flags))
+        assert level.value == 0x300 > 0x280  # 0x280: 부모 프로세스가 쓰는 기본값
+    finally:
+        kernel.SetProcessShutdownParameters(*original)
+
+
+@pytest.mark.parametrize("frozen", [True, False])
+def test_only_the_packaged_app_changes_the_shutdown_order(tmp_path, monkeypatch, frozen):
+    from time_manager import app
+
+    calls = []
+    monkeypatch.setattr(app, "is_frozen", lambda: frozen)
+    monkeypatch.setattr(app, "user_data_dir", lambda root: tmp_path)
+    monkeypatch.setattr(app, "_configure_logging", lambda folder: None)
+    monkeypatch.setattr(app, "_run", lambda *args: calls.append("run"))
+    monkeypatch.setattr(single_instance, "announce_to_installer", lambda: None)
+    monkeypatch.setattr(single_instance, "end_before_launcher", lambda: calls.append("order"))
+
+    app.run_webview(tmp_path)
+
+    assert calls == (["order", "run"] if frozen else ["run"])
+
+
 def test_the_installer_looks_for_the_same_mutex_as_the_app():
     from pathlib import Path
 
     script = (Path(__file__).resolve().parents[1] / "installer" / "TimeManager.iss").read_text(encoding="utf-8-sig")
     assert f"AppMutex={single_instance.INSTALLER_MUTEX}\n" in script
     assert 'Parameters: "--tray"; Tasks: startup' in script
+
+
+def test_the_icon_files_have_every_size_and_the_tray_image_is_packaged():
+    from pathlib import Path
+
+    from PIL import Image
+
+    root = Path(__file__).resolve().parents[1]
+    with Image.open(root / "assets" / "icon.ico") as icon:
+        # 16~24: 작업 표시줄·트레이 (100~150% 배율), 256: 탐색기의 큰 아이콘
+        assert {(size, size) for size in (16, 20, 24, 32, 40, 48, 64, 128, 256)} <= icon.info["sizes"]
+    with Image.open(root / "assets" / "tray.png") as tray_image:
+        assert tray_image.size == (64, 64) and tray_image.convert("RGBA").getpixel((0, 0))[3] == 0
+    spec = (root / "time_manager_webview.spec").read_text(encoding="utf-8")
+    assert '("assets/tray.png", "assets")' in spec and 'icon="assets/icon.ico"' in spec
+    assert '"assets" / "tray.png"' in (root / "time_manager" / "webapp.py").read_text(encoding="utf-8")
 
 
 def test_autostart_opens_in_the_tray():

@@ -72,9 +72,9 @@ def test_no_screen_shows_a_raw_address(api: WebApi) -> None:
 
 
 def test_no_change_is_not_shown_as_an_increase(api: WebApi) -> None:
-    assert {stat["delta"] for stat in api.get_dashboard()["stats"]} == {"어제 같은 시각과 같음"}
+    assert {stat["delta"] for stat in api.get_dashboard()["stats"]} == {"변화 없음"}
 
     _record(api, "game.exe", "t")
 
     deltas = {stat["key"]: stat["delta"] for stat in api.get_dashboard()["stats"]}
-    assert deltas["unproductive"].startswith("▲") and deltas["productive"] == "어제 같은 시각과 같음"
+    assert deltas["unproductive"].startswith("▲") and deltas["productive"] == "변화 없음"

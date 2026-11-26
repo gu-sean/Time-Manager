@@ -11,7 +11,7 @@ def _format_seconds(seconds: int) -> str:
     minutes, remainder = divmod(max(0, seconds), 60)
     hours, minutes = divmod(minutes, 60)
     if hours:
-        return f"{hours}시간 {minutes}분"
+        return f"{hours}시간 {minutes}분" if minutes else f"{hours}시간"  # 화면(time.ts)과 같은 표기
     if minutes:
         return f"{minutes}분"
     return f"{remainder}초"

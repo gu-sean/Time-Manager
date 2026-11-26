@@ -21,6 +21,7 @@ class WeeklySummaryMixin(WebApiBase):
                 self.settings.weekly_goal_minutes,
                 self.settings.daily_goal_minutes,
                 reference_day=last_sunday,
+                goal_weekdays=set(self.settings.goal_weekdays),
             )
             self._send_weekly_summary_notification(progress)
         except Exception:

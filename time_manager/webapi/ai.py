@@ -471,7 +471,9 @@ class AIMixin(WebApiBase):
             "period": f"{start_day.isoformat()}~{end_day.isoformat()}",
             "userProfile": self._preset_role(self.settings.onboarding_profile) or "unspecified",
             "goals": {
-                "dailyProductiveMin": self.settings.daily_goal_minutes,
+                # 하루 코칭이 목표를 쉬는 요일이면 목표 없음
+                "dailyProductiveMin": 0 if scope == "day" and start_day.weekday() not in self.settings.goal_weekdays
+                else self.settings.daily_goal_minutes,
                 "weeklyProductiveMin": self.settings.weekly_goal_minutes,
                 "unproductiveLimitMin": self.settings.unproductive_limit_minutes,
                 "workHours": f"{self.settings.work_start_hour}-{self.settings.work_end_hour}",

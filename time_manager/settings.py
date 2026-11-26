@@ -29,6 +29,10 @@ class AppSettings:
     # 창을 닫아도 트레이에서 계속 기록
     close_to_tray: bool = True
     tray_hint_shown: bool = False
+    # 일간 목표를 적용하는 요일 (월=0 ~ 일=6)
+    goal_weekdays: list[int] = field(default_factory=lambda: list(range(7)))
+    # 집중 타이머 중 비생산 활동 알림
+    focus_alert_enabled: bool = True
     notifications_enabled: bool = True
     auto_backup_enabled: bool = True
     last_auto_backup: str = ""
@@ -87,6 +91,8 @@ class SettingsStore:
             trim_idle_time=bool(data.get("trim_idle_time", False)),
             close_to_tray=bool(data.get("close_to_tray", True)),
             tray_hint_shown=bool(data.get("tray_hint_shown", False)),
+            goal_weekdays=coerce_weekdays(data.get("goal_weekdays", list(range(7)))),
+            focus_alert_enabled=bool(data.get("focus_alert_enabled", True)),
             notifications_enabled=bool(data.get("notifications_enabled", True)),
             auto_backup_enabled=bool(data.get("auto_backup_enabled", True)),
             last_auto_backup=str(data.get("last_auto_backup", "")),
@@ -135,6 +141,15 @@ IDLE_MINUTES_RANGE = (1, 60)
 def clamp_idle_minutes(value: int) -> int:
     low, high = IDLE_MINUTES_RANGE
     return min(max(value, low), high)
+
+
+def coerce_weekdays(value: object) -> list[int]:
+    """0~6 의 중복 없는 목록. 읽을 수 없거나 비어 있으면 모든 요일."""
+    if isinstance(value, list):
+        days = sorted({item for item in value if isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 6})
+        if days:
+            return days
+    return list(range(7))
 
 
 def _coerce_theme(value: object) -> str:

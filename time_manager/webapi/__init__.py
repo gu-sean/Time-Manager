@@ -62,6 +62,7 @@ class WebApi(
     def run_daily_tasks(self) -> None:
         """날짜가 바뀔 때: 앱을 켜 둔 채로도 보존 기간·자동 백업·주간 요약을 처리."""
         self._try(lambda: self.store.purge_older_than(self.settings.retention_days))
+        self._try(self.store.purge_deleted)
         self._run_startup_tasks()
 
     @staticmethod

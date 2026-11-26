@@ -108,22 +108,27 @@ export default function Dashboard({ data }: DashboardProps) {
         </div>
       )}
       <div className="tm-stats-row">
-        {data.stats.map((stat) => {
-          // 실제 변화가 있을 때만 색 표시
-          const changed = /^[▲▼]/.test(stat.delta);
-          const deltaColor = !changed ? 'var(--tm-muted)' : stat.key === 'unproductive' ? 'var(--tm-danger)' : 'var(--tm-ok)';
-          return (
-            <div className="tm-stat-card" key={stat.key}>
-              <span className="tm-stat-label">{stat.label}</span>
-              <div className="tm-stat-value">{stat.value}</div>
-              <div className="tm-stat-delta" style={{ color: deltaColor }}>
-                {stat.delta}
-              </div>
+        {data.stats.map((stat) => (
+          <div className="tm-stat-card" key={stat.key}>
+            <span className="tm-stat-label">{stat.label}</span>
+            <div className="tm-stat-value">{stat.value}</div>
+            {/* 색은 좋고 나쁨: 비생산 시간이 줄면 좋음, 총·중립 시간은 판단하지 않음 */}
+            <div className={`tm-stat-delta tone-${stat.tone}`} aria-label={`${data.comparedWith} 대비 ${stat.delta}`}>
+              {stat.delta}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
+      {data.goal.offDay ? (
+        <div className="tm-card tm-goal-card">
+          <div className="tm-goal-head">
+            <div className="tm-card-title">{data.viewingToday ? '오늘은' : '이 날은'} 목표를 쉬는 날</div>
+            <span className="tm-goal-value">{data.goal.value.split(' / ')[0]} 생산</span>
+          </div>
+          <div className="tm-note">목표 요일은 개인화의 목표 설정에서 바꿀 수 있어요.</div>
+        </div>
+      ) : (
       <div className="tm-card tm-goal-card">
         <div className="tm-goal-head">
           <div className="tm-card-title">{data.viewingToday ? '오늘' : '이 날의'} 생산 목표</div>
@@ -141,7 +146,7 @@ export default function Dashboard({ data }: DashboardProps) {
         >
           <div className="tm-goal-fill" style={{ width: `${data.goal.ratio * 100}%` }} />
         </div>
-        <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+        <div className="tm-settings-help tm-wide">
           {data.goal.achieved
             ? '목표를 달성했어요.'
             : data.viewingToday
@@ -149,6 +154,7 @@ export default function Dashboard({ data }: DashboardProps) {
               : `목표에 ${data.goal.remaining} 모자랐어요.`}
         </div>
       </div>
+      )}
 
       <div className="tm-flow-row">
         <div className="tm-card">

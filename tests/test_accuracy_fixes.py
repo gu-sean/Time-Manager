@@ -12,7 +12,7 @@ from time_manager.settings import SettingsStore
 from time_manager.storage import ActivityStore
 from time_manager.tracker import ActivityTracker
 from time_manager.webapi import WebApi
-from time_manager.webapi._shared import _delta_text
+from time_manager.webapi._shared import _delta_text, _delta_tone
 
 TODAY = date.today()
 YESTERDAY = TODAY - timedelta(days=1)
@@ -110,13 +110,19 @@ def test_newest_records_come_first_even_when_a_split_row_was_added_later(store):
     assert [row.started_at for row in store.recent_for_day(TODAY, limit=None)] == [_at(TODAY, 9), _at(TODAY, 0)]
 
 
+@pytest.mark.parametrize("delta,expected", [(0, "변화 없음"), (60, "▲ 1분"), (-3600, "▼ 1시간")])
+def test_changes_are_short(delta, expected):
+    assert _delta_text(delta) == expected
+
+
 @pytest.mark.parametrize(
-    "delta,basis,expected",
-    [(0, "전날", "전날과 같음"), (0, "어제 같은 시각", "어제 같은 시각과 같음"),
-     (60, "전날", "▲ 1분 (전날 대비)")],
+    "key,delta,tone",
+    [("productive", 60, "good"), ("productive", -60, "bad"), ("unproductive", -60, "good"),
+     ("unproductive", 60, "bad"), ("score", 3, "good"), ("neutral", -60, "neutral"), ("total", 60, "neutral"),
+     ("unproductive", 0, "neutral")],
 )
-def test_comparison_names_what_it_compares_with(delta, basis, expected):
-    assert _delta_text(delta, basis=basis) == expected
+def test_the_colour_follows_whether_the_change_is_good(key, delta, tone):
+    assert _delta_tone(key, delta) == tone
 
 
 def _api(tmp_path, store):
@@ -137,11 +143,12 @@ def test_today_is_compared_with_yesterday_up_to_the_same_time(tmp_path, store):
     _insert(store, _at(YESTERDAY, 0), 30)
     _insert(store, _at(YESTERDAY, 23, 59, 59), 1)  # 지금보다 늦은 시각 (자정 직전 제외)
 
-    stats = {item["key"]: item["delta"] for item in _api(tmp_path, store).get_dashboard()["stats"]}
+    data = _api(tmp_path, store).get_dashboard()
+    stats = {item["key"]: item["delta"] for item in data["stats"]}
 
     if datetime.now().strftime("%H:%M:%S") < "00:01:00":
         pytest.skip("자정 직후에는 어제 같은 시각까지의 합이 30초보다 작음")
-    assert stats["total"] == "▼ 30초 (어제 같은 시각 대비)"
+    assert (stats["total"], data["comparedWith"]) == ("▼ 30초", "어제 같은 시각")
 
 
 def test_a_past_day_is_compared_with_the_whole_day_before(tmp_path, store):
@@ -151,7 +158,7 @@ def test_a_past_day_is_compared_with_the_whole_day_before(tmp_path, store):
 
     data = _api(tmp_path, store).get_dashboard(day.isoformat())
 
-    assert {item["key"]: item["delta"] for item in data["stats"]}["total"] == "▼ 1분 (전날 대비)"
+    assert ({item["key"]: item["delta"] for item in data["stats"]}["total"], data["comparedWith"]) == ("▼ 1분", "전날")
 
 
 def test_report_of_a_past_period_does_not_say_yesterday(tmp_path, store):

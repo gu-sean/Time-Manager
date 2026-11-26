@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import re
 from pathlib import Path
@@ -30,6 +31,8 @@ def launched(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict:
     monkeypatch.setenv("KEEP_ME", "yes")
     monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(b"installer"))
+    # 업데이트 확인에서 받은 SHA-256 과 같은 파일만 실행
+    monkeypatch.setitem(updater._expected_sha256, "https://example.invalid/setup.exe", hashlib.sha256(b"installer").hexdigest())
     seen: dict = {}
     monkeypatch.setattr(updater.subprocess, "Popen", lambda command, **kwargs: seen.update(command=command, **kwargs))
     assert updater.download_and_launch_installer("https://example.invalid/setup.exe")["started"]

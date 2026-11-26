@@ -14,7 +14,7 @@ export function useReportHandlers(
     const mine = ++latest.current;
     const next = await request();
     if (latest.current === mine) setReport(next);
-  }, []);
+  }, [setReport]);
 
   const handleChangePeriod = useCallback((period: string) => show(() => getReport(period)), [show]);
 
@@ -27,7 +27,7 @@ export function useReportHandlers(
     if (!report) return;
     const result = await exportCsvRange(report.startIso, report.endIso);
     if (result.message) setToast(result.message);
-  }, [report]);
+  }, [report, setToast]);
 
   return { handleChangePeriod, handleChangeRange, handleExportCsvReport };
 }

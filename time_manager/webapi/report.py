@@ -24,7 +24,10 @@ class ReportMixin(WebApiBase):
         hourly_rows = self.store.hourly_summaries_between(start_day, end_day)
         weekdays = self.store.weekday_summaries_between(start_day, end_day)
         top_targets = self.store.top_targets_for_period(start_day, end_day, limit=5)
-        progress = self.store.weekly_progress(self.settings.weekly_goal_minutes, self.settings.daily_goal_minutes)
+        progress = self.store.weekly_progress(
+            self.settings.weekly_goal_minutes, self.settings.daily_goal_minutes,
+            goal_weekdays=set(self.settings.goal_weekdays),
+        )
         change = progress.productive_seconds - progress.previous_productive_seconds
 
         active_days = [row for row in rows if row.total_seconds > 0]

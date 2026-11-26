@@ -5,7 +5,7 @@ from typing import Any
 
 from time_manager import __version__
 from time_manager.diagnostics import run_diagnostics as _run_diagnostics
-from time_manager.settings import IDLE_MINUTES_RANGE
+from time_manager.settings import IDLE_MINUTES_RANGE, coerce_weekdays
 from time_manager.startup import disable as _startup_disable
 from time_manager.startup import enable as _startup_enable
 from time_manager.startup import is_enabled as _startup_is_enabled
@@ -34,6 +34,8 @@ class SettingsMixin(WebApiBase):
             "recordMedia": self.settings.record_media,
             "trimIdleTime": self.settings.trim_idle_time,
             "closeToTray": self.settings.close_to_tray,
+            "focusAlert": self.settings.focus_alert_enabled,
+            "goalWeekdays": list(self.settings.goal_weekdays),
             "notificationStatus": self._notification_status_text(),
             "diagnosticInfo": self._diagnostic_info_text(),
             "diagnosticResults": "",
@@ -83,6 +85,12 @@ class SettingsMixin(WebApiBase):
             return {**self.get_settings(), "error": "근무 시간을 0~24 사이로, 종료가 시작보다 늦게 입력해주세요."}
         if retention_days < 0:
             return {**self.get_settings(), "error": "데이터 보존 기간은 0 이상이어야 합니다."}
+        goal_weekdays = self.settings.goal_weekdays
+        if "goalWeekdays" in payload:
+            raw = payload["goalWeekdays"]
+            goal_weekdays = coerce_weekdays(raw)
+            if not isinstance(raw, list) or not raw or len(goal_weekdays) != len(set(raw)):
+                return {**self.get_settings(), "error": "목표 요일을 하나 이상 선택해주세요."}
 
         self.settings.daily_goal_minutes = daily_goal
         self.settings.weekly_goal_minutes = weekly_goal
@@ -90,6 +98,7 @@ class SettingsMixin(WebApiBase):
         self.settings.work_start_hour = start_hour
         self.settings.work_end_hour = end_hour
         self.settings.retention_days = retention_days
+        self.settings.goal_weekdays = goal_weekdays
         self.settings.store_domain_only = bool(payload.get("storeDomainOnly", self.settings.store_domain_only))
         self.settings.store_window_titles = bool(payload.get("storeWindowTitles", self.settings.store_window_titles))
         theme = str(payload.get("theme", self.settings.theme))
@@ -98,6 +107,7 @@ class SettingsMixin(WebApiBase):
         self.tracker.set_privacy_options(self.settings.store_domain_only, self.settings.store_window_titles)
         self.tracker.unproductive_alert_seconds = self.settings.unproductive_limit_minutes * 60
         self.tracker.daily_goal_seconds = daily_goal * 60
+        self.tracker.goal_weekdays = frozenset(self.settings.goal_weekdays)
         if self.tracker.work_end_hour != self.settings.work_end_hour:
             self.tracker.work_end_hour = self.settings.work_end_hour
             self.tracker.reset_end_of_day_state()
@@ -116,7 +126,7 @@ class SettingsMixin(WebApiBase):
                 return {**self.get_settings(), "error": f"자리 비움 기준은 {low}~{high}분 사이로 입력해주세요."}
             self.settings.idle_minutes = minutes
         for key, name in (("recordMedia", "record_media"), ("trimIdleTime", "trim_idle_time"),
-                          ("closeToTray", "close_to_tray")):
+                          ("closeToTray", "close_to_tray"), ("focusAlert", "focus_alert_enabled")):
             if key in payload:
                 setattr(self.settings, name, bool(payload[key]))
         self.settings_store.save(self.settings)
@@ -127,6 +137,9 @@ class SettingsMixin(WebApiBase):
         self.tracker.idle_threshold_seconds = self.settings.idle_minutes * 60
         self.tracker.record_media = self.settings.record_media
         self.tracker.trim_idle_time = self.settings.trim_idle_time
+        self.tracker.focus_alert_enabled = self.settings.focus_alert_enabled
+        self.tracker.daily_goal_seconds = self.settings.daily_goal_minutes * 60
+        self.tracker.goal_weekdays = frozenset(self.settings.goal_weekdays)
 
     def set_theme(self, theme: str) -> dict[str, Any]:
         self.settings.theme = theme if isinstance(theme, str) and theme in {"light", "dark"} else "light"

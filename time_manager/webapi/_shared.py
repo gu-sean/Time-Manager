@@ -76,15 +76,18 @@ def _productivity_score(totals: dict[Category, int]) -> int:
     return round((totals[Category.PRODUCTIVE] / focused) * 100)
 
 
-def _delta_text(delta: int, *, basis: str, unit: str = "") -> str:
-    """``basis`` 는 비교 대상 이름 (예: "전날", "어제 같은 시각")."""
+def _delta_text(delta: int, *, unit: str = "") -> str:
+    """짧은 변화량 (예: "▲ 34분"). 비교 대상은 화면에 한 번만 표시."""
     if delta == 0:
-        return f"{basis}{'과' if _ends_with_consonant(basis) else '와'} 같음"
+        return "변화 없음"
     arrow = "▲" if delta > 0 else "▼"
     value = _format_seconds(abs(delta)) if not unit else f"{abs(delta)}{unit}"
-    return f"{arrow} {value} ({basis} 대비)"
+    return f"{arrow} {value}"
 
 
-def _ends_with_consonant(word: str) -> bool:
-    code = ord(word[-1]) - 0xAC00
-    return 0 <= code <= 11171 and code % 28 != 0
+def _delta_tone(key: str, delta: int) -> str:
+    """good·bad: 늘면 좋은 것(생산·점수)과 줄면 좋은 것(비생산). 총·중립 시간은 판단하지 않음."""
+    direction = {"productive": 1, "score": 1, "unproductive": -1}.get(key, 0)
+    if delta == 0 or direction == 0:
+        return "neutral"
+    return "good" if delta * direction > 0 else "bad"

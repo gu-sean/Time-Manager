@@ -15,6 +15,8 @@ _log = logging.getLogger(__name__)
 _SW_RESTORE = 9
 _WM_QUERYENDSESSION = 0x0011
 _WM_ENDSESSION = 0x0016
+_WM_NOTIFY = 0x0400 + 11  # pystray 가 아이콘 알림에 쓰는 메시지 (WM_USER + 11)
+_WM_RBUTTONUP = 0x0205
 _READY_TIMEOUT_SECONDS = 5.0
 HINT_MESSAGE = "창을 닫아도 계속 기록해요. 끝내려면 트레이 아이콘을 오른쪽 클릭해 '종료'를 누르세요."
 
@@ -116,9 +118,19 @@ class TrayController:
         import pystray
         from PIL import Image
 
+        paused = lambda _: self.tracker.is_running and self.tracker.is_paused  # noqa: E731
         menu = pystray.Menu(
             pystray.MenuItem("Time Manager 열기", lambda: self.show_window(), default=True),
-            pystray.MenuItem("기록 일시정지", lambda: self.toggle_pause(), checked=lambda _: self.tracker.is_paused),
+            pystray.MenuItem("기록 다시 시작", lambda: self.resume(), visible=paused),
+            pystray.MenuItem(
+                "기록 일시정지",
+                pystray.Menu(
+                    pystray.MenuItem("15분 동안", lambda: self.pause(15)),
+                    pystray.MenuItem("1시간 동안", lambda: self.pause(60)),
+                    pystray.MenuItem("다시 켤 때까지", lambda: self.pause(None)),
+                ),
+                visible=lambda item: not paused(item),
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("종료", lambda: self.quit()),
         )
@@ -137,6 +149,15 @@ class TrayController:
         handlers = icon._message_handlers
         handlers[_WM_QUERYENDSESSION] = lambda wparam, lparam: 1
         handlers[_WM_ENDSESSION] = self._end_session
+        # pystray 는 메뉴를 한 번만 만듦 → 오른쪽 클릭 때마다 지금 상태(일시정지 여부)로 다시 만듦
+        notify = handlers[_WM_NOTIFY]
+
+        def on_notify(wparam: int, lparam: int) -> int:
+            if lparam == _WM_RBUTTONUP:
+                icon.update_menu()
+            return notify(wparam, lparam)
+
+        handlers[_WM_NOTIFY] = on_notify
 
     def _end_session(self, ending: int, flags: int) -> int:
         if not ending:  # 종료가 취소됨
@@ -149,6 +170,17 @@ class TrayController:
         except Exception:
             _log.exception("could not secure the data before the session ended")
         return 0
+
+    def pause(self, minutes: int | None) -> None:
+        if not self.tracker.is_running:
+            self.tracker.start()
+        self.tracker.pause(minutes)
+
+    def resume(self) -> None:
+        if self.tracker.is_running:
+            self.tracker.resume()
+        else:
+            self.tracker.start()
 
     def toggle_pause(self) -> None:
         if self.tracker.is_running:

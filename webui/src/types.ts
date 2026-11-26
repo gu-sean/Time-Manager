@@ -2,7 +2,10 @@ export interface StatCard {
   key: string;
   label: string;
   value: string;
+  /** 예: "▲ 34분", "변화 없음" */
   delta: string;
+  /** good: 바람직한 변화, bad: 바람직하지 않은 변화, neutral: 판단하지 않음·변화 없음 */
+  tone: 'good' | 'bad' | 'neutral';
 }
 
 export interface DonutSegment {
@@ -43,6 +46,10 @@ export interface CurrentActivity {
 
 export interface DashboardData {
   goal: DailyGoal;
+  /** 시간을 정한 일시정지가 끝나는 때 ("15:30", "내일 00:10"). 아니면 "" */
+  pausedUntil: string;
+  /** 비교 대상 (예: "어제 같은 시각", "전날") */
+  comparedWith: string;
   problem?: string;
   notices?: string[];
   dateLabel: string;
@@ -214,6 +221,8 @@ export interface Option {
 
 /** 바꿀 항목만 전송. 자리 비움 기준은 빈칸이면 백엔드가 거절. */
 export interface DailyGoal {
+  /** 목표를 쉬는 요일 */
+  offDay: boolean;
   value: string;
   pct: number;
   ratio: number;
@@ -233,6 +242,28 @@ export interface TrackingOptions {
   recordMedia?: boolean;
   trimIdleTime?: boolean;
   closeToTray?: boolean;
+  focusAlert?: boolean;
+}
+
+export interface DeletePreview {
+  error: string;
+  count: number;
+  timeLabel: string;
+  /** 사이트·앱 이름 (기간 삭제에는 없음) */
+  target?: string;
+  kindLabel?: string;
+}
+
+export interface ActionResult {
+  message: string;
+  error: string;
+}
+
+export interface ManualEntry {
+  start: string;
+  minutes: number | '';
+  label: string;
+  category: string;
 }
 
 export interface SettingsData {
@@ -253,6 +284,9 @@ export interface SettingsData {
   recordMedia: boolean;
   trimIdleTime: boolean;
   closeToTray: boolean;
+  focusAlert: boolean;
+  /** 일간 목표를 적용하는 요일 (월=0 ~ 일=6) */
+  goalWeekdays: number[];
   storeDomainOnly: boolean;
   storeWindowTitles: boolean;
   retentionDays: number;

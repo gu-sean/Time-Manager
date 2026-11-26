@@ -37,7 +37,9 @@ class RulesMixin(WebApiBase):
         ("비생산적", "앱 이름", "unproductive_apps"),
         ("중립", "창 제목 키워드", "neutral_title_keywords"),
         ("기록 제외", "앱 이름", "excluded_apps"),
+        ("기록 제외", "도메인", "excluded_domains"),
     )
+    _EXCLUDE_BY_TITLE = "기록 제외는 앱 이름이나 도메인으로만 등록할 수 있어요."
 
     def get_rules(self) -> dict[str, Any]:
         rules = load_rules(self.rules_path)
@@ -59,6 +61,8 @@ class RulesMixin(WebApiBase):
         value = value.strip()
         if not value:
             return {**self.get_rules(), "error": "값을 입력하세요."}
+        if category == "기록 제외" and rule_type == "창 제목 키워드":
+            return {**self.get_rules(), "error": self._EXCLUDE_BY_TITLE}
         key = rule_key_for_selection(rule_type, category)
         classifier = self._add_rule_value(key, value)
         if classifier is None:
@@ -72,6 +76,8 @@ class RulesMixin(WebApiBase):
         value = value.strip()
         if not value:
             return {**self.get_rules(), "error": "값을 입력하세요."}
+        if category == "기록 제외" and rule_type == "창 제목 키워드":
+            return {**self.get_rules(), "error": self._EXCLUDE_BY_TITLE}
         new_key = rule_key_for_selection(rule_type, category)
         if new_key == old_key and value == old_value:
             return self.get_rules()

@@ -9,7 +9,15 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from time_manager.local_model import Signature
-from time_manager.models import NO_RULE_REASON, ActiveTarget, Category, ClassifiedActivity
+from time_manager.models import (
+    MANUAL_APP,
+    MANUAL_ENTRY_REASON,
+    NO_RULE_REASON,
+    PRIVATE_REASON,
+    ActiveTarget,
+    Category,
+    ClassifiedActivity,
+)
 
 
 @dataclass(frozen=True)
@@ -160,6 +168,8 @@ class EventTarget:
 
 # 사용자가 직접 바꾼 분류
 _MANUAL_REASON = "manual correction"
+# 삭제한 기록을 되돌릴 수 있는 시간. 지나면 파일에서도 지움
+RESTORE_HOURS = 24
 
 
 @dataclass(frozen=True)
@@ -226,7 +236,7 @@ class ActivityStore:
             SELECT id, started_at, seconds, category, app_name, window_title, url, reason
             FROM activity_events
             WHERE deleted_at IS NULL
-            ORDER BY id DESC
+            ORDER BY started_at DESC, id DESC
             LIMIT 1
             """
         ).fetchone()
@@ -723,6 +733,7 @@ class ActivityStore:
         daily_goal_minutes: int,
         reference_day: date | None = None,
         now: datetime | None = None,
+        goal_weekdays: frozenset[int] | set[int] | None = None,
     ) -> WeeklyProgress:
         """이번 주 월요일 ~ 기준일의 생산 시간과, 지난주의 같은 구간.
 
@@ -751,7 +762,13 @@ class ActivityStore:
         return WeeklyProgress(
             productive_seconds=sum(row.productive_seconds for row in current_rows),
             previous_productive_seconds=previous,
-            achieved_days=sum(1 for row in current_rows if row.productive_seconds >= threshold),
+            # 목표를 쉬는 요일은 세지 않음
+            achieved_days=sum(
+                1
+                for row in current_rows
+                if row.productive_seconds >= threshold
+                and (goal_weekdays is None or date.fromisoformat(row.day).weekday() in goal_weekdays)
+            ),
             weekly_goal_minutes=weekly_goal_minutes,
         )
 
@@ -789,7 +806,7 @@ class ActivityStore:
     ) -> list[Reclassification]:
         """지금 규칙을 지난 기록에 적용하면 분류가 달라지는 기록.
 
-        - 직접 바꾼 분류와 삭제한 기록은 제외
+        - 직접 바꾼 분류, 직접 입력한 기록, 비공개 창, 삭제한 기록은 제외
         - 맞는 규칙이 없으면 그대로 둠: 창 제목을 저장하지 않은 기록은 제목 규칙으로 다시 판단할 수 없음
         """
         with self._connection() as conn:
@@ -797,9 +814,9 @@ class ActivityStore:
                 """
                 SELECT id, app_name, window_title, url, category, seconds
                 FROM activity_events
-                WHERE deleted_at IS NULL AND reason != ?
+                WHERE deleted_at IS NULL AND reason NOT IN (?, ?, ?)
                 """,
-                (_MANUAL_REASON,),
+                (_MANUAL_REASON, MANUAL_ENTRY_REASON, PRIVATE_REASON),
             ).fetchall()
         results: dict[tuple[str, str, str | None], ClassifiedActivity] = {}
         changes = []
@@ -835,6 +852,95 @@ class ActivityStore:
                 (category.value, _MANUAL_REASON, event_id),
             )
 
+    def purge_deleted(self, hours: int = RESTORE_HOURS, now: datetime | None = None) -> int:
+        """되돌릴 수 있는 시간이 지난 삭제 기록을 파일에서 지움."""
+        cutoff = ((now or datetime.now().astimezone()) - timedelta(hours=hours)).isoformat(timespec="seconds")
+        with self._connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM activity_events WHERE deleted_at IS NOT NULL AND deleted_at <= ?", (cutoff,)
+            )
+        return max(0, cursor.rowcount)
+
+    def _target_ids(self, conn: sqlite3.Connection, kind: str, value: str) -> list[tuple[int, int]]:
+        """(id, 초): ``kind`` 가 "domain" 이면 그 사이트(하위 도메인 포함), "app" 이면 주소가 없는 그 앱의 기록."""
+        from time_manager.rules import _domain_from_url, _matches_domain
+
+        wanted = value.strip().lower()
+        found = []
+        for event_id, seconds, app_name, url in conn.execute(
+            "SELECT id, seconds, app_name, COALESCE(url, '') FROM activity_events"
+        ):
+            domain = _domain_from_url(url)
+            if kind == "domain" and domain and _matches_domain(domain, (wanted,)):
+                found.append((int(event_id), int(seconds)))
+            elif kind == "app" and not domain and str(app_name).lower() == wanted:
+                found.append((int(event_id), int(seconds)))
+        return found
+
+    def count_target(self, kind: str, value: str) -> tuple[int, int]:
+        """(건수, 초). 삭제한 기록은 세지 않음."""
+        with self._connection() as conn:
+            ids = self._target_ids(conn, kind, value)
+            if not ids:
+                return 0, 0
+            live = {
+                int(row[0])
+                for row in conn.execute("SELECT id FROM activity_events WHERE deleted_at IS NULL")
+            }
+        kept = [seconds for event_id, seconds in ids if event_id in live]
+        return len(kept), sum(kept)
+
+    def delete_target(self, kind: str, value: str) -> int:
+        """그 사이트·앱의 모든 기록을 완전히 지움 (되돌릴 수 없음)."""
+        with self._connection() as conn:
+            ids = [event_id for event_id, _ in self._target_ids(conn, kind, value)]
+            conn.executemany("DELETE FROM activity_events WHERE id = ?", [(event_id,) for event_id in ids])
+        return len(ids)
+
+    def count_period(self, start_day: date, end_day: date) -> tuple[int, int]:
+        start, end = self._period_bounds(start_day, end_day)
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*), COALESCE(SUM(seconds), 0) FROM activity_events"
+                " WHERE started_at >= ? AND started_at < ? AND deleted_at IS NULL",
+                (start, end),
+            ).fetchone()
+        return int(row[0]), int(row[1])
+
+    def delete_period(self, start_day: date, end_day: date) -> int:
+        """기간의 모든 기록을 완전히 지움 (삭제 대기 중인 것 포함, 되돌릴 수 없음)."""
+        start, end = self._period_bounds(start_day, end_day)
+        with self._connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM activity_events WHERE started_at >= ? AND started_at < ?", (start, end)
+            )
+        return max(0, cursor.rowcount)
+
+    def overlapping(self, started: datetime, seconds: int) -> list[RecentRow]:
+        """``started`` 부터 ``seconds`` 동안과 겹치는 기록."""
+        ended = started + timedelta(seconds=seconds)
+        rows = self.recent_for_day(started.date(), limit=None) + self.recent_for_day(
+            started.date() - timedelta(days=1), limit=None
+        )
+        found = []
+        for row in rows:
+            begin = datetime.fromisoformat(row.started_at)
+            if begin < ended and begin + timedelta(seconds=row.seconds) > started:
+                found.append(row)
+        return found
+
+    def add_manual_entry(self, started: datetime, seconds: int, label: str, category: Category) -> int:
+        with self._connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO activity_events (started_at, seconds, category, app_name, window_title, url, reason)
+                VALUES (?, ?, ?, ?, ?, NULL, ?)
+                """,
+                (started.isoformat(timespec="seconds"), seconds, category.value, MANUAL_APP, label,
+                 MANUAL_ENTRY_REASON),
+            )
+        return int(cursor.lastrowid)
+
     def soft_delete_event(self, event_id: int) -> None:
         deleted_at = datetime.now().astimezone().isoformat(timespec="seconds")
         with self._connection() as conn:
@@ -867,6 +973,7 @@ class ActivityStore:
         self._release_own_connection()
         conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds)
         try:
+            conn.execute("PRAGMA secure_delete = ON")
             conn.execute("VACUUM")
         finally:
             conn.close()
@@ -1087,6 +1194,8 @@ class ActivityStore:
                     conn.close()
             # 각 연결은 만든 스레드만 사용. 검사를 끄는 것은 다른 스레드에서 닫기 위함
             conn = sqlite3.connect(self.db_path, timeout=self.connection_timeout_seconds, check_same_thread=False)
+            # 지운 기록의 내용이 파일의 빈 공간에 남지 않게 덮어씀
+            conn.execute("PRAGMA secure_delete = ON")
             self._connections = [*alive, (threading.current_thread(), conn)]
         return conn
 

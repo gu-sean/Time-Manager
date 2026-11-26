@@ -7,7 +7,7 @@ from time_manager.formatting import _display_label, _format_seconds, _truncate
 from time_manager import notices
 from time_manager.models import Category
 
-from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals, _delta_text, _parse_day, _productivity_score
+from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals, _delta_text, _delta_tone, _parse_day, _productivity_score
 
 
 class DashboardMixin(WebApiBase):
@@ -59,7 +59,8 @@ class DashboardMixin(WebApiBase):
                 "key": "total",
                 "label": "총 사용 시간",
                 "value": _format_seconds(total_seconds),
-                "delta": _delta_text(total_seconds - yesterday_total, basis=basis),
+                "delta": _delta_text(total_seconds - yesterday_total),
+                "tone": _delta_tone("total", total_seconds - yesterday_total),
             }
         ]
         for category in (Category.PRODUCTIVE, Category.UNPRODUCTIVE, Category.NEUTRAL):
@@ -68,15 +69,17 @@ class DashboardMixin(WebApiBase):
                     "key": category.value,
                     "label": f"{_CATEGORY_LABELS[category]} 시간",
                     "value": _format_seconds(totals[category]),
-                    "delta": _delta_text(totals[category] - yesterday_totals[category], basis=basis),
+                    "delta": _delta_text(totals[category] - yesterday_totals[category]),
+                    "tone": _delta_tone(category.value, totals[category] - yesterday_totals[category]),
                 }
             )
         stats.append(
             {
                 "key": "score",
                 "label": "생산성 점수",
-                "value": f"{score}%",
-                "delta": _delta_text(score - yesterday_score, basis=basis, unit="점"),
+                "value": f"{score}점",  # 리포트·회고와 같은 단위
+                "delta": _delta_text(score - yesterday_score, unit="점"),
+                "tone": _delta_tone("score", score - yesterday_score),
             }
         )
 
@@ -122,7 +125,9 @@ class DashboardMixin(WebApiBase):
         current_activity = self._current_activity_payload()
         goal_seconds = max(60, self.settings.daily_goal_minutes * 60)
         productive = totals[Category.PRODUCTIVE]
+        off_day = selected_day.weekday() not in self.settings.goal_weekdays
         goal = {
+            "offDay": off_day,
             "value": f"{_format_seconds(productive) if productive else '0분'} / {_format_seconds(goal_seconds)}",
             "pct": productive * 100 // goal_seconds,  # 다 채우기 전에 100% 로 보이지 않게 내림
             "ratio": min(1.0, productive / goal_seconds),
@@ -142,6 +147,7 @@ class DashboardMixin(WebApiBase):
             "dateLabel": "오늘" if viewing_today else selected_day.strftime("%Y년 %m월 %d일"),
             "viewingToday": viewing_today,
             "tracking": self.tracker.is_running and not self.tracker.is_paused,
+            "pausedUntil": self._paused_until_label(),
             "problem": self.tracker.problem,
             "notices": notices.current(),
             "stats": stats,
@@ -149,9 +155,39 @@ class DashboardMixin(WebApiBase):
             "hourly": hourly,
             "topApps": top_apps,
             "goal": goal,
+            "comparedWith": basis,
             "focusSummary": focus_summary,
             "currentActivity": current_activity,
         }
+
+    def pause_tracking(self, minutes: int | None = None) -> dict[str, Any]:
+        """``minutes`` 동안 일시정지 (없으면 직접 다시 켤 때까지)."""
+        try:
+            minutes = int(minutes) if minutes is not None else None
+        except (TypeError, ValueError):
+            minutes = None
+        if minutes is not None and not 1 <= minutes <= 24 * 60:
+            minutes = None
+        if not self.tracker.is_running:
+            self.tracker.start()
+        self.tracker.pause(minutes)
+        return self.get_dashboard()
+
+    def set_focus_session(self, ends_at_ms: float | None = None) -> None:
+        """화면의 집중 타이머: 집중 단계가 끝나는 때(epoch ms). 멈추거나 쉬면 None."""
+        try:
+            ends_at = float(ends_at_ms) / 1000 if ends_at_ms else None
+        except (TypeError, ValueError):
+            ends_at = None
+        self.tracker.set_focus_session(ends_at)
+
+    def _paused_until_label(self) -> str:
+        until = self.tracker.paused_until
+        if until is None:
+            return ""
+        moment = datetime.fromtimestamp(until)
+        prefix = "" if moment.date() == date.today() else "내일 "
+        return f"{prefix}{moment:%H:%M}"
 
     def get_current_activity(self) -> dict[str, Any] | None:
         return self._current_activity_payload()

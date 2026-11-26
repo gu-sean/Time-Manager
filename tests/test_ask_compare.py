@@ -101,11 +101,11 @@ def store(tmp_path: Path):
 def test_periods_of_different_length_are_compared_per_day(store: ActivityStore) -> None:
     result = run_query(store, parse_local("지난주랑 이번 주 유튜브 비교", NAMES, TODAY), TODAY)
     # 7시간 / 7일 = 하루 1시간, 2시간 / 4일 = 하루 30분 (합계 차이는 5시간)
-    assert "하루 평균: 1시간 0분 → 30분, 30분 줄었어요." in result["answer"]
+    assert "하루 평균: 1시간 → 30분, 30분 줄었어요." in result["answer"]
     assert "7일과 4일" in result["answer"] and "오늘은 아직 끝나지 않았어요" in result["answer"]
     # 막대도 평균을 표시: "줄었다"는 쪽의 막대가 더 길면 안 됨
-    assert [(row["time"], row["ratio"]) for row in result["rows"]] == [("1시간 0분", 1.0), ("30분", 0.5)]
-    assert result["rows"][0]["label"].endswith("하루 평균 (합계 7시간 0분)")
+    assert [(row["time"], row["ratio"]) for row in result["rows"]] == [("1시간", 1.0), ("30분", 0.5)]
+    assert result["rows"][0]["label"].endswith("하루 평균 (합계 7시간)")
     assert result["interpretation"].startswith("비교 2026-11-16~2026-11-22 → 2026-11-23~2026-11-26")
 
 
@@ -113,7 +113,7 @@ def test_equal_periods_are_compared_by_total(store: ActivityStore) -> None:
     result = run_query(store, parse_model_spec(
         _model(start="2026-11-24", end="2026-11-24", compareStart="2026-11-17", compareEnd="2026-11-17"), NAMES, TODAY
     ), TODAY)
-    assert result["answer"] == "사용 시간: 7시간 0분 → 3시간 0분, 4시간 0분 줄었어요."
+    assert result["answer"] == "사용 시간: 7시간 → 3시간, 4시간 줄었어요."
 
 
 def test_the_difference_matches_the_numbers_shown(store: ActivityStore) -> None:
@@ -135,14 +135,14 @@ def test_the_difference_matches_the_numbers_shown(store: ActivityStore) -> None:
 def test_hours_follow_the_clock(store: ActivityStore) -> None:
     result = run_query(store, parse_local("이번 주 유튜브 언제 많이 봤어", NAMES, TODAY), TODAY)
     assert [(row["label"], row["time"]) for row in result["rows"]] == [
-        ("21시–22시", "30분"), ("22시–23시", "1시간 0분"), ("23시–24시", "30분"),
+        ("21시–22시", "30분"), ("22시–23시", "1시간"), ("23시–24시", "30분"),
     ]
     assert "가장 많이 쓴 시간대는 22시–23시" in result["answer"]
 
 
 def test_the_busiest_day_is_named(store: ActivityStore) -> None:
     result = run_query(store, parse_local("최근 14일 무슨 요일에 가장 많이 썼어", NAMES, TODAY), TODAY)
-    assert "가장 많이 쓴 날은 2026-11-17 (7시간 0분)" in result["answer"]
+    assert "가장 많이 쓴 날은 2026-11-17 (7시간)" in result["answer"]
 
 
 def test_no_records_says_so(store: ActivityStore) -> None:

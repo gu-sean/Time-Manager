@@ -105,7 +105,7 @@ function AiCoachingCard({ external, dateIso, onGetCoaching }: AiCoachingCardProp
         </div>
       </div>
       {!result && !loading && !notice && (
-        <div style={{ fontSize: 11, color: 'var(--tm-muted)' }}>
+        <div className="tm-note">
           {external
             ? '선택한 AI 서버로 집계된 시간 통계와 앱·도메인 이름만 전송해 코칭을 만들어요.'
             : '이 PC의 기록 통계로 코칭을 만들어요. 아무것도 전송하지 않습니다.'}
@@ -140,7 +140,7 @@ function AiCoachingCard({ external, dateIso, onGetCoaching }: AiCoachingCardProp
               </ul>
             </>
           )}
-          <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 8 }}>
+          <div className="tm-note" style={{ marginTop: 8 }}>
             {result.scopeLabel} 기준 · {result.source}
             {result.reused && ' · 저장된 결과 (다시 전송하지 않음)'}
             {result.generated && ' · AI가 생성한 요약이라 부정확할 수 있어요.'}

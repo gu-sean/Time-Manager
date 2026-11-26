@@ -158,7 +158,7 @@ class TestAsk:
 
         llm.assert_not_called()
         assert result["error"] == ""
-        assert "2시간 0분" in result["answer"]
+        assert "2시간" in result["answer"]
         assert "Code.exe" in result["interpretation"]
 
     def test_ranking_and_daily_rows(self, logged: WebApi) -> None:
@@ -187,7 +187,7 @@ class TestAsk:
         sent = llm.call_args.kwargs["user"]
         assert "private title" not in sent and "watch?v" not in sent
         assert "5400" not in sent and "seconds" not in sent and "minutes" not in sent
-        assert "2시간 0분" in result["answer"] and "999" not in result["answer"]
+        assert "2시간" in result["answer"] and "999" not in result["answer"]
         assert result["source"] == "Ollama · m"
 
     def test_failure_offers_the_builtin_parser(self, logged: WebApi) -> None:

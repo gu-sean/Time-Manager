@@ -69,7 +69,7 @@ function RuleSuggestions({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onGetSuggestions]);
 
   const recommend = async (builtin = false) => {
     setError('');
@@ -175,7 +175,7 @@ function RuleSuggestions({
           {request.loading ? '분석 중…' : analysis ? '다시 분석' : '✨ 맞춤 추천 받기'}
         </button>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginBottom: 10 }}>
+      <div className="tm-note" style={{ marginBottom: 10 }}>
         최근 자주 쓴 앱·사이트 중 아직 규칙이 없는 항목입니다. 분류를 선택하면 규칙으로 등록됩니다.{' '}
         {external ? '맞춤 추천을 받으면 앱 이름과 도메인이 선택한 AI 서버로 전송됩니다.' : '맞춤 추천은 이 PC에서만 분석합니다.'}
         {analysis && ` (${analysis.source})`}
@@ -185,12 +185,12 @@ function RuleSuggestions({
       {error && <AiFailure message={error} onUseBuiltin={offerBuiltin ? () => recommend(true) : undefined} />}
       {suggestions.length === 0 && <div className="tm-empty-row">제안할 항목이 없습니다.</div>}
       {analysis && analysis.skipped > 0 && (
-        <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginBottom: 4 }}>
+        <div className="tm-note" style={{ marginBottom: 4 }}>
           {analysis.skipped}개 항목은 판단할 근거가 부족해 추천하지 않았어요.
         </div>
       )}
       {analysis && analysis.excluded > 0 && (
-        <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginBottom: 4 }}>
+        <div className="tm-note" style={{ marginBottom: 4 }}>
           {analysis.excluded}개 항목은 전송 제외 목록에 있어 보내지 않았어요.
         </div>
       )}
@@ -335,7 +335,7 @@ function RuleReapply({ onApplied }: { onApplied: (message: string) => void }) {
           {busy && !preview ? '확인 중…' : '바뀔 내용 보기'}
         </button>
       </div>
-      <div className="tm-settings-help" style={{ maxWidth: 'none' }}>
+      <div className="tm-settings-help tm-wide">
         지금 규칙에 맞는 지난 기록의 분류를 바꿔요. 직접 바꾼 분류와 맞는 규칙이 없는 기록은 그대로 둬요.
       </div>
       {error && <div className="tm-rule-error" role="alert" style={{ marginTop: 8 }}>{error}</div>}
@@ -362,7 +362,7 @@ function RuleReapply({ onApplied }: { onApplied: (message: string) => void }) {
             </div>
           ))}
           {preview.more > 0 && <div className="tm-settings-help">그 밖의 {preview.more}개 항목도 함께 바뀌어요.</div>}
-          <div className="tm-settings-help" style={{ maxWidth: 'none', marginTop: 8 }}>
+          <div className="tm-settings-help tm-wide" style={{ marginTop: 8 }}>
             적용 직전 상태를 자동으로 백업해요. 되돌리려면 개인화의 백업 복원에서 그 파일을 선택하세요(규칙과 설정도 그때로
             돌아가요).
           </div>
@@ -493,7 +493,7 @@ export default function Rules({
       <div className="tm-card">
         <div className="tm-rule-list-head">
           <div className="tm-card-title">등록된 규칙 목록</div>
-          <span style={{ fontSize: 11, color: 'var(--tm-muted)' }}>전체 {data.total}개</span>
+          <span className="tm-note">전체 {data.total}개</span>
         </div>
         {data.items.length === 0 && <div className="tm-empty-row">등록된 규칙이 없습니다.</div>}
         {pageItems.map((rule) => {
@@ -569,7 +569,7 @@ export default function Rules({
             </button>
           </div>
         )}
-        <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 11 }}>
+        <div className="tm-note" style={{ marginTop: 11 }}>
           규칙을 클릭하면 위 편집기에서 수정할 수 있습니다. 우선순위가 높은 규칙이 먼저 적용됩니다.
         </div>
       </div>
