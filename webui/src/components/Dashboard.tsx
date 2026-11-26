@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import FocusTimer from './FocusTimer';
+import HourlyChart from './charts/HourlyChart';
 import type { DashboardData } from '../types';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  productive: '#7FA98A',
-  unproductive: '#DB9163',
-  neutral: '#99ABBE',
+  productive: '#128C6E',
+  unproductive: '#D58528',
+  neutral: '#7A82D6',
 };
 
 function Donut({ total, segments }: DashboardData['donut']) {
@@ -44,53 +45,6 @@ function Donut({ total, segments }: DashboardData['donut']) {
   );
 }
 
-function HourlyChart({ hourly }: { hourly: DashboardData['hourly'] }) {
-  const peak = Math.max(1, ...hourly.map((h) => h.productive + h.unproductive + h.neutral));
-  return (
-    <>
-      <div className="tm-hourly-chart">
-        {hourly.map((h) => {
-          const total = h.productive + h.unproductive + h.neutral;
-          const pPct = (h.productive / peak) * 100;
-          const uPct = (h.unproductive / peak) * 100;
-          const nPct = (h.neutral / peak) * 100;
-          const pctOfHour = (v: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
-          return (
-            <div className="tm-hourly-bar" key={h.hour}>
-              <div className="tm-hourly-tooltip">
-                <div className="tm-hourly-tooltip-hour">{h.hour}시</div>
-                <div className="tm-hourly-tooltip-row">
-                  <span className="tm-hourly-tooltip-dot" style={{ background: CATEGORY_COLORS.productive }} />
-                  생산적 <strong>{pctOfHour(h.productive)}%</strong>
-                </div>
-                <div className="tm-hourly-tooltip-row">
-                  <span className="tm-hourly-tooltip-dot" style={{ background: CATEGORY_COLORS.unproductive }} />
-                  비생산적 <strong>{pctOfHour(h.unproductive)}%</strong>
-                </div>
-                <div className="tm-hourly-tooltip-row">
-                  <span className="tm-hourly-tooltip-dot" style={{ background: CATEGORY_COLORS.neutral }} />
-                  중립 <strong>{pctOfHour(h.neutral)}%</strong>
-                </div>
-              </div>
-              <div style={{ height: `${nPct}%`, background: CATEGORY_COLORS.neutral, borderRadius: '3px 3px 0 0' }} />
-              <div style={{ height: `${uPct}%`, background: CATEGORY_COLORS.unproductive }} />
-              <div style={{ height: `${pPct}%`, background: CATEGORY_COLORS.productive, borderRadius: '0 0 3px 3px' }} />
-            </div>
-          );
-        })}
-      </div>
-      <div className="tm-hourly-axis">
-        {[0, 4, 8, 12, 16, 20].map((hour) => (
-          <span key={hour} style={{ gridColumnStart: hour + 1, justifySelf: 'start' }}>
-            {String(hour).padStart(2, '0')}:00
-          </span>
-        ))}
-        <span style={{ gridColumnStart: 24, justifySelf: 'end' }}>24:00</span>
-      </div>
-    </>
-  );
-}
-
 const TOP_APPS_DEFAULT = 5;
 
 function TopApps({ rows }: { rows: DashboardData['topApps'] }) {
@@ -98,12 +52,12 @@ function TopApps({ rows }: { rows: DashboardData['topApps'] }) {
   const visible = expanded ? rows : rows.slice(0, TOP_APPS_DEFAULT);
 
   if (rows.length === 0) {
-    return <div className="tm-top-apps">기록된 데이터가 없습니다.</div>;
+    return <div className="tm-empty-row">기록된 데이터가 없습니다.</div>;
   }
   return (
     <div className="tm-top-apps">
       {visible.map((row) => {
-        const color = CATEGORY_COLORS[row.category] ?? '#99ABBE';
+        const color = CATEGORY_COLORS[row.category] ?? '#7A82D6';
         const initial = [...row.label].find((ch) => /[\p{L}\p{N}]/u.test(ch))?.toUpperCase() ?? '?';
         return (
           <div className="tm-top-app-row" key={row.rank}>
@@ -142,9 +96,22 @@ interface DashboardProps {
 export default function Dashboard({ data }: DashboardProps) {
   return (
     <div className="tm-page">
+      {data.viewingToday && data.donut.segments.length === 0 && (
+        <div className="tm-card tm-first-run" role="note">
+          <div className="tm-card-title">아직 오늘 기록이 없어요</div>
+          <div>
+            {data.tracking
+              ? '컴퓨터를 사용하면 잠시 후 여기에 표시돼요.'
+              : '왼쪽 아래의 스위치를 켜면 활동 기록이 시작돼요.'}{' '}
+            분류가 대부분 중립이라면 개인화의 직업 프리셋이나 규칙 화면에서 규칙을 추가해보세요.
+          </div>
+        </div>
+      )}
       <div className="tm-stats-row">
         {data.stats.map((stat) => {
-          const deltaColor = stat.key === 'unproductive' ? '#C8795A' : '#6F9A7C';
+          // 실제 변화가 있을 때만 색 표시
+          const changed = /^[▲▼]/.test(stat.delta);
+          const deltaColor = !changed ? 'var(--tm-muted)' : stat.key === 'unproductive' ? 'var(--tm-danger)' : 'var(--tm-ok)';
           return (
             <div className="tm-stat-card" key={stat.key}>
               <span className="tm-stat-label">{stat.label}</span>
@@ -163,7 +130,7 @@ export default function Dashboard({ data }: DashboardProps) {
           <div className="tm-donut-body">
             <Donut total={data.donut.total} segments={data.donut.segments} />
             <div className="tm-legend">
-              {data.donut.segments.length === 0 && <span style={{ fontSize: 12, color: '#A79F92' }}>기록된 데이터가 없습니다.</span>}
+              {data.donut.segments.length === 0 && <span style={{ fontSize: 12, color: 'var(--tm-muted)' }}>기록된 데이터가 없습니다.</span>}
               {data.donut.segments.map((seg) => (
                 <div className="tm-legend-row" key={seg.category}>
                   <span className="tm-legend-dot" style={{ background: seg.color }} />
@@ -194,7 +161,8 @@ export default function Dashboard({ data }: DashboardProps) {
               </span>
             </div>
           </div>
-          <HourlyChart hourly={data.hourly} />
+          {/* 날짜가 바뀌면 선택 해제 상태로 시작 */}
+          <HourlyChart key={data.dateLabel} hourly={data.hourly} viewingToday={data.viewingToday} />
         </div>
       </div>
 

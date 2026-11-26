@@ -1,4 +1,4 @@
-"""Built-in coaching: statistics turned into sentences. No model, no network."""
+"""내장 코칭: 통계를 문장으로 변환. 모델·네트워크 사용 안 함."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ _NOTABLE_CHANGE_MIN = 10
 
 
 def build_local_coaching(payload: dict[str, Any]) -> dict[str, Any]:
-    """Takes the same summary that external providers receive."""
+    """외부 제공자에게 보내는 것과 같은 요약을 입력으로 받음."""
     week = payload["scope"] == "week"
     daily = payload["daily"]
     goals = payload["goals"]

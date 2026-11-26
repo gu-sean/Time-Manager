@@ -8,6 +8,10 @@ import Review from './components/Review';
 import Rules from './components/Rules';
 import Report from './components/Report';
 import SettingsPage from './components/Settings';
+import ErrorBoundary from './components/ErrorBoundary';
+import StatusBanners from './components/StatusBanners';
+import { describeError } from './errors';
+import type { SettingsTab } from './components/Settings';
 import {
   getDashboard,
   getInbox,
@@ -37,6 +41,8 @@ const PAGE_META: Record<string, { title: string; sub: string }> = {
 };
 
 const POLL_MS = 5000;
+// 하루 단위 화면에만 날짜 선택기 표시
+const DATE_PAGES = new Set(['dashboard', 'inbox', 'review']);
 
 function localDateIso(): string {
   const now = new Date();
@@ -61,18 +67,50 @@ function App() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [toast, setToast] = useState('');
+  // 설정 화면이 저장 후 다시 마운트되므로 여기서 보관
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const pollRef = useRef<number | undefined>(undefined);
+  const [failure, setFailure] = useState('');
+  const [connectionLost, setConnectionLost] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<Record<string, boolean>>({});
+  const [seenNotices, setSeenNotices] = useState<string[]>([]);
+  const refreshFailures = useRef(0);
 
   const refresh = useCallback(async () => {
-    const today = localDateIso();
-    if (selectedDayRef.current !== today && selectedDayRef.current === prevDayRef.current) {
-      selectedDayRef.current = today;
-      setSelectedDay(today);
-      setToast('날짜가 변경되었습니다.');
+    try {
+      await waitForApi();
+      const today = localDateIso();
+      if (selectedDayRef.current !== today && selectedDayRef.current === prevDayRef.current) {
+        selectedDayRef.current = today;
+        setSelectedDay(today);
+        setToast('날짜가 변경되었습니다.');
+      }
+      prevDayRef.current = today;
+      const day = selectedDayRef.current;
+      const data = await getDashboard(day);
+      refreshFailures.current = 0;
+      setConnectionLost(false);
+      if (selectedDayRef.current === day) setDashboard(data); // 그사이 사용자가 다른 날짜로 이동했을 수 있음
+    } catch (error) {
+      console.error('refresh failed', error);
+      // 갱신 한 번 놓친 것은 경고하지 않음
+      refreshFailures.current += 1;
+      if (refreshFailures.current >= 2) setConnectionLost(true);
     }
-    prevDayRef.current = today;
-    const data = await getDashboard(selectedDayRef.current);
-    setDashboard(data);
+  }, []);
+
+  // 버튼에서 시작해 아무도 처리하지 않은 오류는 여기서 알림 (조용히 사라지지 않게)
+  useEffect(() => {
+    const report = (event: PromiseRejectionEvent) => {
+      event.preventDefault();
+      console.error('action failed', event.reason);
+      setToast(''); // 실패 안내 옆에 성공 메시지가 남지 않게 함
+      setFailure(describeError(event.reason));
+      // 백엔드는 디스크 상태를 유지하므로 그 값을 다시 표시
+      getSettings().then(setSettings).catch(() => undefined);
+    };
+    window.addEventListener('unhandledrejection', report);
+    return () => window.removeEventListener('unhandledrejection', report);
   }, []);
 
   const theme = settings?.theme ?? 'light';
@@ -80,14 +118,14 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    waitForApi().then(() => {
-      if (!cancelled) {
-        refresh();
-        getSettings().then((result) => {
-          if (!cancelled) setSettings(result);
-        });
-      }
-    });
+    // 첫 로드 후 몇 초마다 갱신
+    void Promise.resolve().then(refresh);
+    waitForApi()
+      .then(getSettings)
+      .then((result) => {
+        if (!cancelled) setSettings(result);
+      })
+      .catch((error) => console.error('settings failed to load', error));
     pollRef.current = window.setInterval(refresh, POLL_MS);
     return () => {
       cancelled = true;
@@ -101,34 +139,64 @@ function App() {
 
   useEffect(() => {
     if (!toast) return undefined;
-    const timeout = window.setTimeout(() => setToast(''), 2800);
+    const timeout = window.setTimeout(() => setToast(''), Math.max(2800, toast.length * 100));
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  // 화면에 처음 들어갈 때 데이터 로드, 실패하면 다시 시도 제공
   useEffect(() => {
-    if (activePage === 'inbox' && !inbox) {
-      waitForApi().then(() => getInbox('', null, selectedDayRef.current).then(setInbox));
-    }
-    if (activePage === 'review' && !review) {
-      waitForApi().then(() => getReview(selectedDayRef.current).then(setReview));
-    }
-    if (activePage === 'rules' && !rules) {
-      waitForApi().then(() => getRules().then(setRules));
-    }
-    if (activePage === 'report' && !report) {
-      waitForApi().then(() => getReport().then(setReport));
-    }
-    if (activePage === 'settings' && !settings) {
-      waitForApi().then(() => getSettings().then(setSettings));
-    }
-  }, [activePage, inbox, review, rules, report, settings]);
+    if (loadFailed[activePage]) return;
+    const day = selectedDayRef.current;
+    const loaders: Record<string, (() => Promise<void>) | false> = {
+      inbox: !inbox && (async () => setInbox(await getInbox('', null, day))),
+      review: !review && (async () => setReview(await getReview(day))),
+      rules: !rules && (async () => setRules(await getRules())),
+      report: !report && (async () => setReport(await getReport())),
+      settings: !settings && (async () => setSettings(await getSettings())),
+    };
+    const load = loaders[activePage];
+    if (!load) return;
+    waitForApi()
+      .then(load)
+      .catch((error) => {
+        console.error(`${activePage} failed to load`, error);
+        setLoadFailed((failed) => ({ ...failed, [activePage]: true }));
+      });
+  }, [activePage, inbox, review, rules, report, settings, loadFailed]);
+
+  // 다시 시도는 처음부터: 화면을 깨뜨린 데이터를 다시 보여주지 않음
+  const retryPage = useCallback(() => {
+    setLoadFailed((failed) => ({ ...failed, [activePage]: false }));
+    const discard: Record<string, () => void> = {
+      dashboard: () => setDashboard(null),
+      inbox: () => setInbox(null),
+      review: () => setReview(null),
+      rules: () => setRules(null),
+      report: () => setReport(null),
+      settings: () => setSettings(null),
+    };
+    discard[activePage]?.();
+    if (activePage === 'dashboard') void refresh();
+  }, [activePage, refresh]);
 
   const navigateDay = useCallback(async (newDay: string) => {
     selectedDayRef.current = newDay;
     setSelectedDay(newDay);
-    setDashboard(await getDashboard(newDay));
-    if (activePage === 'inbox') setInbox(await getInbox('', null, newDay));
-    if (activePage === 'review') setReview(await getReview(newDay));
+    // 빠르게 여러 번 눌러도 이전 날짜의 응답이 최신 화면을 덮지 않게 함
+    const current = () => selectedDayRef.current === newDay;
+    // 날짜를 쓰는 다른 화면은 다음에 열 때 다시 로드
+    if (activePage !== 'inbox') setInbox(null);
+    if (activePage !== 'review') setReview(null);
+    const nextDashboard = await getDashboard(newDay);
+    if (current()) setDashboard(nextDashboard);
+    if (activePage === 'inbox') {
+      const next = await getInbox('', null, newDay);
+      if (current()) setInbox(next);
+    }
+    if (activePage === 'review') {
+      const next = await getReview(newDay);
+      if (current()) setReview(next);
+    }
   }, [activePage]);
 
   const handlePrevDay = useCallback(async () => {
@@ -162,7 +230,7 @@ function App() {
     setDashboard(await toggleTracking());
   }, []);
 
-  // Review and report are cached per visit, so drop them when records change.
+  // 회고·리포트는 방문 단위 캐시 → 기록이 바뀌면 버림
   const handleRecordsChanged = useCallback(() => {
     setReview(null);
     setReport(null);
@@ -184,24 +252,15 @@ function App() {
   });
 
   const externalAi = !!settings && settings.aiProvider !== 'local';
+  const pageData: Record<string, unknown> = { dashboard, inbox, review, rules, report, settings };
   const meta = PAGE_META[activePage] ?? PAGE_META.dashboard;
-  const settingsFormKey = settings
-    ? [
-        settings.dailyGoalMinutes,
-        settings.weeklyGoalMinutes,
-        settings.unproductiveLimitMinutes,
-        settings.workStartHour,
-        settings.workEndHour,
-        settings.retentionDays,
-      ].join(':')
-    : 'settings';
 
   return (
     <div className={`tm-shell ${theme === 'dark' ? 'dark' : 'light'}`}>
       <Sidebar
         activePage={activePage}
         onSelectPage={setActivePage}
-        tracking={dashboard?.tracking ?? true}
+        tracking={dashboard?.tracking ?? false}
         dashboard={dashboard}
         onToggleTracking={handleToggleTracking}
         appVersion={settings?.appVersion}
@@ -214,6 +273,7 @@ function App() {
           viewingToday={dashboard?.viewingToday ?? true}
           notificationsEnabled={notificationsEnabled}
           theme={theme}
+          showDate={DATE_PAGES.has(activePage)}
           onPrevDay={handlePrevDay}
           onNextDay={handleNextDay}
           onToday={handleToday}
@@ -221,6 +281,28 @@ function App() {
           onToggleTheme={handleToggleTheme}
         />
         <div className="tm-scroll">
+          <StatusBanners
+            failure={failure}
+            onDismissFailure={() => setFailure('')}
+            connectionLost={connectionLost}
+            problem={dashboard?.problem ?? ''}
+            notices={(dashboard?.notices ?? []).filter((notice) => !seenNotices.includes(notice))}
+            onDismissNotice={(notice) => setSeenNotices((seen) => [...seen, notice])}
+          />
+          {!pageData[activePage] &&
+            (loadFailed[activePage] || (activePage === 'dashboard' && connectionLost) ? (
+              <div className="tm-card tm-state-card" role="alert">
+                <div className="tm-card-title">화면을 불러오지 못했어요</div>
+                <div>잠시 후 다시 시도해주세요. 계속 반복되면 앱을 다시 실행해보세요.</div>
+                <button className="tm-btn-small tm-btn-primary" type="button" onClick={retryPage}>
+                  다시 시도
+                </button>
+              </div>
+            ) : (
+              <div className="tm-empty-row" role="status">불러오는 중…</div>
+            ))}
+          {/* 화면별 key: 깨진 화면을 벗어나면 오류 해제 */}
+          <ErrorBoundary key={activePage} onRetry={retryPage}>
           {activePage === 'dashboard' && dashboard && (
             <Dashboard data={dashboard} />
           )}
@@ -232,6 +314,7 @@ function App() {
               onDelete={inboxHandlers.handleDelete}
               onRestore={inboxHandlers.handleRestore}
               onReclassify={inboxHandlers.handleReclassify}
+              onAddRule={inboxHandlers.handleAddRule}
             />
           )}
           {activePage === 'review' && review && (
@@ -260,20 +343,24 @@ function App() {
               onChangePeriod={reportHandlers.handleChangePeriod}
               onChangeRange={reportHandlers.handleChangeRange}
               onExportCsv={reportHandlers.handleExportCsvReport}
+              external={externalAi}
             />
           )}
           {activePage === 'settings' && settings && (
             <SettingsPage
-              key={settingsFormKey}
               data={settings}
+              tab={settingsTab}
+              onTabChange={setSettingsTab}
               onSave={settingsHandlers.handleSaveSettings}
-              onToggleExcludeSelf={settingsHandlers.handleToggleExcludeSelf}
               onToggleAutoBackup={settingsHandlers.handleToggleAutoBackup}
               onToggleStartup={settingsHandlers.handleToggleStartup}
               onToggleNotifications={settingsHandlers.handleToggleSettingsNotifications}
               onToggleTheme={settingsHandlers.handleSetTheme}
               onSetProfile={settingsHandlers.handleSetProfile}
               onApplyPreset={settingsHandlers.handleApplyPreset}
+              onCreatePreset={settingsHandlers.handleCreatePreset}
+              onUpdatePreset={settingsHandlers.handleUpdatePreset}
+              onDeletePreset={settingsHandlers.handleDeletePreset}
               onRunDiagnostics={settingsHandlers.handleRunDiagnostics}
               onCheckUpdate={settingsHandlers.handleCheckUpdate}
               onInstallUpdate={settingsHandlers.handleInstallUpdate}
@@ -287,11 +374,17 @@ function App() {
               onClearAiApiKey={settingsHandlers.handleClearAiApiKey}
               onTestAiConnection={settingsHandlers.handleTestAiConnection}
               onListAiModels={settingsHandlers.handleListAiModels}
+              onAddAiExclusion={settingsHandlers.handleAddAiExclusion}
+              onRemoveAiExclusion={settingsHandlers.handleRemoveAiExclusion}
             />
           )}
+          </ErrorBoundary>
         </div>
       </main>
-      {toast && <div className="tm-toast">{toast}</div>}
+      {/* 화면 낭독기가 새 메시지를 읽도록 항상 렌더링 */}
+      <div role="status" aria-live="polite">
+        {toast && <div className="tm-toast">{toast}</div>}
+      </div>
     </div>
   );
 }

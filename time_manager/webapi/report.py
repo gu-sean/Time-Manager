@@ -3,10 +3,16 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from time_manager.formatting import _format_seconds, _report_period_for_label, _truncate
+from time_manager.formatting import _display_label, _format_seconds, _report_period_for_label, _truncate
 from time_manager.models import Category
 
 from ._shared import WebApiBase
+
+
+def _week_change_text(seconds: int) -> str:
+    if abs(seconds) < 60:
+        return "지난주와 같음"
+    return f"지난주보다 {_format_seconds(abs(seconds))} {'늘음' if seconds > 0 else '줄음'}"
 
 
 class ReportMixin(WebApiBase):
@@ -60,7 +66,7 @@ class ReportMixin(WebApiBase):
 
         weekly_distractions = [row for row in top_targets if row.category == Category.UNPRODUCTIVE][:3]
         if weekly_distractions:
-            coaching = f"반복 비생산 활동은 {_truncate(weekly_distractions[0].label, 30)}입니다."
+            coaching = f"반복 비생산 활동은 {_truncate(_display_label(weekly_distractions[0].label), 30)}입니다."
         else:
             coaching = "뚜렷한 반복 비생산 활동은 아직 없습니다."
         if hourly_rows:
@@ -93,7 +99,7 @@ class ReportMixin(WebApiBase):
             for row in weekdays
         ]
 
-        trend = [{"day": row.day[5:], "score": row.productivity_score} for row in rows if row.total_seconds > 0]
+        trend = [{"date": row.day, "score": row.productivity_score} for row in rows if row.total_seconds > 0]
 
         heat_grid = self.store.weekday_hour_totals_between(start_day, end_day)
         peak_cell = max((value for row in heat_grid for value in row), default=0) or 1
@@ -101,6 +107,7 @@ class ReportMixin(WebApiBase):
             {
                 "day": self._WEEKDAY_LABELS[weekday],
                 "cells": [round(seconds / peak_cell, 3) for seconds in heat_grid[weekday]],
+                "seconds": list(heat_grid[weekday]),
             }
             for weekday in range(7)
         ]
@@ -118,10 +125,10 @@ class ReportMixin(WebApiBase):
         peak_top = max((row.seconds for row in top_targets), default=0) or 1
         top_activities = [
             {
-                "name": row.label,
+                "name": _display_label(row.label),
                 "time": _format_seconds(row.seconds),
                 "ratio": row.seconds / peak_top,
-                "color": {"productive": "#7FA98A", "unproductive": "#DB9163", "neutral": "#99ABBE"}[row.category.value],
+                "color": {"productive": "#128C6E", "unproductive": "#D58528", "neutral": "#7A82D6"}[row.category.value],
             }
             for row in top_targets
         ]
@@ -135,7 +142,7 @@ class ReportMixin(WebApiBase):
             "weeklyProgressText": (
                 f"{_format_seconds(progress.productive_seconds)} / {_format_seconds(progress.weekly_goal_minutes * 60)} "
                 f"({round(progress.progress_ratio * 100)}%) · 일간 목표 달성 {progress.achieved_days}일 · "
-                f"지난주 대비 {'+' if change >= 0 else '-'}{abs(change) // 60}분"
+                f"{_week_change_text(change)}"
             ),
             "coachingText": coaching,
             "weekdayText": weekday_text,

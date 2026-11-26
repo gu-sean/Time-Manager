@@ -29,7 +29,7 @@ def test_new_user_gets_no_weekly_comparison(api: WebApi) -> None:
 def test_week_compares_full_days_only(api: WebApi) -> None:
     for days_ago in range(1, 20):
         _add(api, days_ago, 60 if days_ago <= 6 else 30)
-    _add(api, 0, 500)  # unfinished today must not count
+    _add(api, 0, 500)  # 끝나지 않은 오늘은 계산에서 제외
 
     assert _comparison(api, "week") == {
         "comparedDays": 6,

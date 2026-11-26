@@ -8,7 +8,7 @@ from ._shared import WebApiBase
 class WeeklySummaryMixin(WebApiBase):
     def _maybe_weekly_summary_notify(self) -> None:
         today = date.today()
-        if today.weekday() != 0:  # only check on Monday, once per week
+        if today.weekday() != 0:  # 월요일에만 확인, 주 1회
             return
         last_sunday = today - timedelta(days=1)
         last_monday = last_sunday - timedelta(days=6)

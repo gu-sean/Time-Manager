@@ -42,6 +42,8 @@ export interface CurrentActivity {
 }
 
 export interface DashboardData {
+  problem?: string;
+  notices?: string[];
   dateLabel: string;
   viewingToday: boolean;
   tracking: boolean;
@@ -60,6 +62,9 @@ export interface InboxRecord {
   categoryLabel: string;
   duration: string;
   label: string;
+  detail?: string;
+  /** "앞으로도 적용" 규칙에 쓸 사이트·앱. 규칙 효과가 없으면 빈 문자열. */
+  ruleTarget?: string;
 }
 
 export interface InboxData {
@@ -137,13 +142,15 @@ export interface WeekdayBar {
 }
 
 export interface TrendPoint {
-  day: string;
+  /** YYYY-MM-DD */
+  date: string;
   score: number;
 }
 
 export interface HeatmapRow {
   day: string;
   cells: number[];
+  seconds: number[];
 }
 
 export interface DailyRow {
@@ -211,9 +218,9 @@ export interface SettingsData {
   workStartHour: number;
   workEndHour: number;
   profile: string;
-  profileOptions: Option[];
+  profileOptions: PresetOption[];
+  notice?: string;
   presetItems: PresetItem[];
-  excludeSelf: boolean;
   notificationsEnabled: boolean;
   autoBackupEnabled: boolean;
   startupEnabled: boolean;
@@ -228,6 +235,7 @@ export interface SettingsData {
   aiProviderOptions: Option[];
   aiService: string;
   aiServices: AIService[];
+  aiExcludedTargets: string[];
   error?: string;
 }
 
@@ -276,8 +284,40 @@ export interface AIRequestPreview {
   error: string;
 }
 
+export interface PresetOption {
+  value: string;
+  label: string;
+  emoji: string;
+  custom: boolean;
+}
+
+export interface CoachingHistoryEntry {
+  id: number;
+  createdAt: string;
+  scope: 'day' | 'week';
+  startDay: string;
+  endDay: string;
+  source: string;
+  generated: boolean;
+  headline: string;
+  insights: string[];
+  actions: string[];
+}
+
+export interface AskResult {
+  answer: string;
+  interpretation: string;
+  /** ratio: 행의 막대 길이 (0–1) */
+  rows: { label: string; time: string; ratio?: number }[];
+  note: string;
+  source: string;
+  error: string;
+  canFallback: boolean;
+}
+
 export interface AIRuleSuggestionsResult {
   canFallback: boolean;
+  excluded: number;
   items: AIRuleSuggestion[];
   skipped: number;
   source: string;
@@ -292,6 +332,8 @@ export interface AICoaching {
   source: string;
   generated: boolean;
   canFallback: boolean;
+  savedAt?: string;
+  reused?: boolean;
   error: string;
 }
 

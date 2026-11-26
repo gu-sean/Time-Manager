@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from urllib.parse import urlsplit
 
 
 def _format_seconds(seconds: int) -> str:
@@ -9,6 +10,40 @@ def _format_seconds(seconds: int) -> str:
     if minutes:
         return f"{minutes}분"
     return f"{remainder}초"
+
+
+def _display_label(label: str) -> str:
+    """사람이 읽는 형태의 웹 주소: 스킴, "www.", 쿼리, 프래그먼트 제거.
+
+    - 그 외(창 제목, 앱 이름)는 그대로 반환
+    """
+    if not label.lower().startswith(("http://", "https://")):
+        return label
+    try:
+        parts = urlsplit(label)
+        host = (parts.hostname or "").removeprefix("www.")
+    except ValueError:
+        return label
+    return f"{host}{parts.path.rstrip('/')}" if host else label
+
+
+def _friendly_time(iso: str, today: date | None = None) -> str:
+    """표시 형식: 오늘 15:00 / 어제 09:30 / 11월 3일 09:30 (해가 다르면 연도 포함)."""
+    try:
+        moment = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso
+    today = today or date.today()
+    day = moment.date()
+    if day == today:
+        name = "오늘"
+    elif day == today - timedelta(days=1):
+        name = "어제"
+    else:
+        name = f"{day.month}월 {day.day}일"
+        if day.year != today.year:
+            name = f"{day.year}년 {name}"
+    return f"{name} {moment:%H:%M}"
 
 
 def _truncate(value: str, limit: int) -> str:

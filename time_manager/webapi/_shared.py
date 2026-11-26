@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class WebApiBase:
-    """Mixin base: declares shared instance attributes for type checkers."""
+    """믹스인 공통 기반: 공유 인스턴스 속성을 타입 검사기에 선언."""
 
     store: ActivityStore
     tracker: ActivityTracker
@@ -32,10 +32,25 @@ _CATEGORY_LABELS = {
 }
 
 CATEGORY_COLORS = {
-    Category.PRODUCTIVE: "#7FA98A",
-    Category.UNPRODUCTIVE: "#DB9163",
-    Category.NEUTRAL: "#99ABBE",
+    Category.PRODUCTIVE: "#128C6E",
+    Category.UNPRODUCTIVE: "#D58528",
+    Category.NEUTRAL: "#7A82D6",
 }
+
+
+def _parse_day(value: str | None) -> date:
+    """요청한 날짜. 없거나 해석할 수 없으면 오늘."""
+    try:
+        return date.fromisoformat(value) if value else date.today()
+    except (TypeError, ValueError):
+        return date.today()
+
+
+def _parse_category(value: str | None) -> Category | None:
+    try:
+        return Category(value) if value else None
+    except ValueError:
+        return None
 
 
 def _day_totals(store: ActivityStore, day: date) -> dict[Category, int]:
@@ -53,6 +68,8 @@ def _productivity_score(totals: dict[Category, int]) -> int:
 
 
 def _delta_text(delta: int, *, unit: str = "") -> str:
-    arrow = "▲" if delta >= 0 else "▼"
+    if delta == 0:
+        return "어제와 같음"
+    arrow = "▲" if delta > 0 else "▼"
     value = _format_seconds(abs(delta)) if not unit else f"{abs(delta)}{unit}"
     return f"{arrow} {value} (어제 대비)"

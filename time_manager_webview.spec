@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Alternative build target — produces TimeManagerWeb.exe from the same entrypoint
-# as time_manager.spec. Useful for a separate installer/channel during rollout.
+# main.py 를 진입점으로 TimeManagerWeb.exe 빌드
+# 주의: 설치 스크립트(installer/TimeManager.iss)는 TimeManager.exe 를 찾음
 
 from PyInstaller.utils.hooks import collect_dynamic_libs
 

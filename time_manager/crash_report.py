@@ -1,7 +1,8 @@
-"""Best-effort crash reporting: on an unhandled top-level exception, capture a
-diagnostic snapshot, copy it to the clipboard, and open the bug-report form so
-the user can paste it in — instead of the app just silently dying or showing
-PyInstaller's raw traceback dialog.
+"""오류 보고 (가능한 범위에서만).
+
+- 처리되지 않은 최상위 예외 발생 시 진단 정보를 수집해 클립보드에 복사
+- 붙여 넣을 수 있도록 버그 신고 양식을 염
+- 앱이 말없이 꺼지거나 PyInstaller 기본 오류창만 뜨는 것을 대신함
 """
 from __future__ import annotations
 
@@ -69,7 +70,7 @@ def _notify_user(copied: bool) -> None:
 
 
 def handle_crash(exc: BaseException, data_dir: Path) -> None:
-    """Never let this raise — it runs after the app has already failed."""
+    """예외를 밖으로 내보내지 않음 (앱이 이미 실패한 뒤에 실행됨)."""
     try:
         data_dir.mkdir(parents=True, exist_ok=True)
         report = build_crash_report(exc, data_dir)

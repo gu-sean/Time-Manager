@@ -9,6 +9,8 @@ export default function Toggle({ checked, onChange, label }: ToggleProps) {
     <button
       className={`tm-toggle-track ${checked ? 'on' : 'off'}`}
       type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
       aria-label={label ?? '토글'}
     >

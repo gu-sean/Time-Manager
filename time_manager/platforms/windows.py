@@ -61,7 +61,7 @@ class WindowsMonitor(PlatformMonitor):
         process_path = _process_path(hwnd)
         app_name = Path(process_path).name if process_path else "Unknown"
         url = self._browser_url(hwnd, app_name, title)
-        return ActiveTarget(app_name=app_name, window_title=title, url=url)
+        return ActiveTarget(app_name=app_name, window_title=title, url=url, process_id=_process_id(hwnd))
 
     def idle_seconds(self) -> int:
         last_input = LASTINPUTINFO()
@@ -100,13 +100,18 @@ def _window_title(hwnd: int) -> str:
     return buffer.value
 
 
-def _process_path(hwnd: int) -> str:
+def _process_id(hwnd: int) -> int | None:
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    if not pid.value:
+    return pid.value or None
+
+
+def _process_path(hwnd: int) -> str:
+    pid = _process_id(hwnd)
+    if not pid:
         return ""
 
-    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
         return ""
 
@@ -120,7 +125,7 @@ def _process_path(hwnd: int) -> str:
 
 
 def _active_browser_url(hwnd: int, app_name: str) -> tuple[str | None, str]:
-    # 반환값: (url, 진단메시지). 진단메시지가 빈 문자열이면 정상.
+    # 반환값: (url, 진단 메시지). 메시지가 빈 문자열이면 정상
     if app_name.lower() not in WindowsMonitor.browser_processes:
         return None, ""
 

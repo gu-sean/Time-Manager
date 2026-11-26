@@ -3,15 +3,15 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from time_manager.formatting import _format_seconds, _truncate
+from time_manager.formatting import _display_label, _format_seconds, _truncate
 from time_manager.models import Category
 
-from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals
+from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals, _parse_day
 
 
 class ReviewMixin(WebApiBase):
     def get_review(self, date_iso: str | None = None) -> dict[str, Any]:
-        selected_day = date.fromisoformat(date_iso) if date_iso else date.today()
+        selected_day = _parse_day(date_iso)
         totals = _day_totals(self.store, selected_day)
         total_seconds = sum(totals.values())
         segments = []
@@ -34,13 +34,13 @@ class ReviewMixin(WebApiBase):
         flow = self.store.day_flow(selected_day)
 
         highlights = [
-            self._review_highlight("생산", "#EAF1EC", "#6F9A7C", "가장 많이 쓴 생산 활동", review.strongest_productive, "#7FA98A"),
-            self._review_highlight("주의", "#F8EDE3", "#CB8056", "가장 큰 방해 요소", review.largest_distraction, "#DB9163"),
-            self._review_highlight("정리", "#EBF0F4", "#7E97AC", "정리가 필요한 중립 활동", review.unresolved_candidate, "#99ABBE"),
+            self._review_highlight("생산", "#EAF1EC", "#6F9A7C", "가장 많이 쓴 생산 활동", review.strongest_productive, "#128C6E"),
+            self._review_highlight("주의", "#F8EDE3", "#CB8056", "가장 큰 방해 요소", review.largest_distraction, "#D58528"),
+            self._review_highlight("정리", "#EBF0F4", "#7E97AC", "정리가 필요한 중립 활동", review.unresolved_candidate, "#7A82D6"),
         ]
 
         if review.largest_distraction:
-            suggestion = f"'{_truncate(review.largest_distraction.label, 34)}' 사용 시간을 줄일 규칙이나 업무 시간 패턴을 먼저 점검하세요."
+            suggestion = f"'{_truncate(_display_label(review.largest_distraction.label), 34)}' 사용 시간을 줄일 규칙이나 업무 시간 패턴을 먼저 점검하세요."
         elif review.unresolved_candidate:
             suggestion = "중립 활동을 분류하면 다음 회고가 더 또렷해집니다."
         elif review.strongest_productive:
@@ -66,7 +66,7 @@ class ReviewMixin(WebApiBase):
         if focus_sessions:
             total_focus = sum(session.seconds for session in focus_sessions)
             deepest = max(focus_sessions, key=lambda session: session.seconds)
-            label = _truncate(deepest.primary_label, 24) if deepest.primary_label else "생산 활동"
+            label = _truncate(_display_label(deepest.primary_label), 24) if deepest.primary_label else "생산 활동"
             focus_payload = {
                 "empty": False,
                 "note": f"가장 깊은 몰입 · {label}",
@@ -97,4 +97,4 @@ class ReviewMixin(WebApiBase):
     def _review_highlight(tag: str, t_bg: str, t_fg: str, title: str, row, accent: str) -> dict[str, Any]:
         if row is None:
             return {"tag": tag, "tBg": t_bg, "tFg": t_fg, "title": title, "value": "기록 없음", "time": "", "color": accent, "empty": True}
-        return {"tag": tag, "tBg": t_bg, "tFg": t_fg, "title": title, "value": _truncate(row.label, 30), "time": _format_seconds(row.seconds), "color": accent, "empty": False}
+        return {"tag": tag, "tBg": t_bg, "tFg": t_fg, "title": title, "value": _truncate(_display_label(row.label), 30), "time": _format_seconds(row.seconds), "color": accent, "empty": False}

@@ -1,4 +1,4 @@
-"""Windows 로그인 시 자동 실행 등록/해제 (레지스트리 HKCU Run 키 사용)."""
+"""Windows 로그인 시 자동 실행 등록·해제 (레지스트리 HKCU Run 키)."""
 from __future__ import annotations
 
 import sys

@@ -14,6 +14,8 @@ class ActiveTarget:
     app_name: str
     window_title: str
     url: Optional[str] = None
+    # 창 소유 프로세스: 실행 파일 이름과 무관하게 이 앱을 식별
+    process_id: Optional[int] = None
 
     @property
     def identity(self) -> str:

@@ -1,8 +1,11 @@
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+from time_manager import notices
+from time_manager.fileio import atomic_write_text
 from time_manager.models import ActiveTarget, Category, ClassifiedActivity
 
 
@@ -161,7 +164,7 @@ def load_rules(path: Path) -> dict[str, list[str]]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (ValueError, OSError):  # ValueError: 잘못된 JSON 또는 UTF-8 아님
         _quarantine_corrupt_rules(path)
         return {}
     if not isinstance(data, dict):
@@ -179,18 +182,19 @@ def _normalize_rules(data: dict[str, object]) -> dict[str, list[str]]:
 
 
 def _quarantine_corrupt_rules(path: Path) -> None:
-    # 손상된 rules.json을 .corrupt로 이동 — 크래시 대신 빈 규칙으로 기동하고, 원본은 복구 가능하게 보존
+    # 손상된 rules.json 은 .corrupt 로 이동: 빈 규칙으로 시작하고 원본은 보존
     try:
         backup = path.with_suffix(path.suffix + ".corrupt")
         if path.exists():
             path.replace(backup)
+            notices.add(f"분류 규칙 파일이 손상되어 빈 규칙으로 시작했어요. 원본은 '{backup}' 파일로 보관했습니다.")
     except OSError:
         pass
 
 
 def save_rules(path: Path, rules: dict[str, list[str]]) -> None:
     normalized = {key: sorted(set(values), key=str.lower) for key, values in rules.items()}
-    path.write_text(json.dumps(normalized, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(normalized, indent=2, ensure_ascii=False) + "\n")
 
 
 def add_rule_value(path: Path, rule_key: str, value: str) -> RuleClassifier:
@@ -225,18 +229,27 @@ def _conflicting_rule_keys(rule_key: str) -> tuple[str, ...]:
     return ()
 
 
-def apply_profile_preset(path: Path, profile: str) -> RuleClassifier:
+def apply_preset_rules(path: Path, preset: Mapping[str, Sequence[str]]) -> tuple[RuleClassifier, int, int]:
+    """프리셋 규칙 추가. (분류기, 추가한 수, 유지한 항목) 반환.
+
+    - 사용자 규칙 우선: 충돌 목록(반대 분류, 제외 앱 등)에 있는 값은 그대로 둠
+    """
     rules = load_rules(path)
-    preset = PROFILE_PRESETS.get(profile, {})
+    added = kept = 0
     for key, values in preset.items():
-        bucket = rules.setdefault(key, [])
-        existing = {item.lower() for item in bucket}
         for value in values:
-            if value.lower() not in existing:
-                bucket.append(value)
-                existing.add(value.lower())
+            bucket = rules.setdefault(key, [])
+            if value.lower() in {item.lower() for item in bucket}:
+                continue
+            try:
+                _raise_for_rule_conflict(rules, key, value)
+            except RuleConflictError:
+                kept += 1
+                continue
+            bucket.append(value)
+            added += 1
     save_rules(path, rules)
-    return RuleClassifier.from_dict(rules)
+    return RuleClassifier.from_dict(rules), added, kept
 
 
 def neutralize_rule_value(path: Path, value: str) -> RuleClassifier:
@@ -255,7 +268,7 @@ def update_rule_value(
     new_rule_key: str,
     new_value: str,
 ) -> RuleClassifier:
-    # 기존 값 삭제 후 충돌 검사 — 같은 값의 카테고리만 바꾸는 경우 자기 자신과 충돌하지 않도록
+    # 기존 값을 지운 뒤 충돌 검사: 분류만 바꿀 때 자기 자신과 충돌하지 않게 함
     rules = load_rules(path)
     cleaned_old = old_value.strip()
     cleaned_new = new_value.strip()
@@ -290,6 +303,36 @@ def rule_key_for_selection(rule_type: str, category: str) -> str:
     if rule_type == "창 제목 키워드":
         return f"{prefix}_title_keywords"
     return f"{prefix}_apps"
+
+
+# 브라우저 주소를 읽지 못하면 브라우저 이름만 알 수 있음
+# → 그에 대한 규칙은 모든 웹 사용을 한꺼번에 분류하게 됨
+BROWSER_APPS = frozenset(
+    f"{name}.exe" for name in ("chrome", "msedge", "firefox", "whale", "brave", "opera", "vivaldi", "iexplore")
+)
+
+
+def activity_rule_target(app_name: str, url: str | None) -> str:
+    """활동 하나로 규칙을 만들 때 쓸 사이트·앱 이름. 안전한 것이 없으면 ""."""
+    domain = _domain_from_url(url)
+    if domain:
+        return domain
+    name = (app_name or "").strip()
+    return "" if name.lower() in BROWSER_APPS or not name.lower().endswith(".exe") else name
+
+
+def rule_would_apply(rules: dict[str, list[str]], target: str, category: Category, activity: ActiveTarget) -> bool:
+    """``target`` 규칙을 추가하면 ``activity`` 가 실제로 ``category`` 가 되는지 확인.
+
+    - False: 기존 규칙과 충돌하거나, 먼저 검사되는 규칙이 결과를 정하는 경우
+    """
+    key, value = rule_from_candidate(target, category)
+    try:
+        _raise_for_rule_conflict(rules, key, value)
+    except RuleConflictError:
+        return False
+    trial = {**rules, key: [*rules.get(key, []), value]}
+    return RuleClassifier.from_dict(trial).classify(activity).category == category
 
 
 def rule_from_candidate(label: str, category: Category) -> tuple[str, str]:

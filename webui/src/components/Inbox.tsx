@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { InboxData } from '../types';
 
 const PAGE_SIZE = 20;
+// 고정 열은 좁게: 남는 폭은 활동 이름에 배정
+const INBOX_COLUMNS = '96px 78px minmax(0, 1fr) 72px';
 
 const CATEGORY_COLORS: Record<string, [string, string]> = {
   productive: ['#EAF1EC', '#6F9A7C'],
@@ -31,14 +33,15 @@ interface InboxProps {
   onDelete: (eventId: number) => void;
   onRestore: () => void;
   onReclassify: (eventId: number, category: string) => Promise<void>;
+  onAddRule: (eventId: number) => Promise<void>;
 }
 
-export default function Inbox({ data, onSearch, onClearSearch, onDelete, onRestore, onReclassify }: InboxProps) {
+export default function Inbox({ data, onSearch, onClearSearch, onDelete, onRestore, onReclassify, onAddRule }: InboxProps) {
   const [query, setQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [reclassifying, setReclassifying] = useState(false);
-  // Looked up from the latest data so it never shows a stale category or a removed record.
+  // 최신 데이터에서 조회: 바뀐 분류나 삭제된 기록이 남지 않음
   const selected = data.records.find((record) => record.id === selectedId) ?? null;
 
   const reclassify = async (category: string) => {
@@ -51,6 +54,16 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
     }
   };
   const [page, setPage] = useState(0);
+
+  const addRule = async () => {
+    if (!selected) return;
+    setReclassifying(true);
+    try {
+      await onAddRule(selected.id);
+    } finally {
+      setReclassifying(false);
+    }
+  };
 
   const pageCount = Math.max(1, Math.ceil(data.records.length / PAGE_SIZE));
 
@@ -118,7 +131,7 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
           </div>
         )}
 
-        <div className="tm-table-head" style={{ gridTemplateColumns: '130px 90px 1fr 90px' }}>
+        <div className="tm-table-head" style={{ gridTemplateColumns: INBOX_COLUMNS, columnGap: 10 }}>
           <span>시간</span>
           <span>분류</span>
           <span>활동</span>
@@ -129,7 +142,7 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
           <div
             key={row.id}
             className={`tm-table-row${selected?.id === row.id ? ' selected' : ''}`}
-            style={{ gridTemplateColumns: '130px 90px 1fr 90px' }}
+            style={{ gridTemplateColumns: INBOX_COLUMNS, columnGap: 10 }}
             role="button"
             tabIndex={0}
             aria-label={`${row.time} ${row.label} ${row.duration} 선택`}
@@ -141,8 +154,15 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
             <span>
               <CategoryPill category={row.category} label={row.categoryLabel} />
             </span>
-            <span style={{ color: 'var(--tm-ink)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {row.label}
+            <span style={{ minWidth: 0 }}>
+              <span className="tm-ellipsis" style={{ color: 'var(--tm-ink)', fontWeight: 600 }} title={row.label}>
+                {row.label}
+              </span>
+              {row.detail && (
+                <span className="tm-ellipsis tm-subline" title={row.detail}>
+                  {row.detail}
+                </span>
+              )}
             </span>
             <span style={{ color: 'var(--tm-ink-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{row.duration}</span>
           </div>
@@ -188,6 +208,17 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
           ))}
         </div>
 
+        {selected?.ruleTarget && (
+          <div className="tm-rule-offer">
+            <span>
+              지금 규칙으로는 다음에 다르게 분류돼요.
+            </span>
+            <button className="tm-btn-small tm-btn-primary" type="button" disabled={reclassifying} onClick={addRule}>
+              앞으로 {selected.ruleTarget}도 {selected.categoryLabel}으로 분류
+            </button>
+          </div>
+        )}
+
         <div className="tm-editor-actions">
           <button
             className="tm-btn-small tm-btn-ghost"
@@ -201,9 +232,9 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
             최근 삭제 복원
           </button>
         </div>
-        <div style={{ fontSize: 11, color: '#A79F92', marginTop: 11 }}>
-          기록을 선택해 분류를 바꾸면 그 기록에만 적용되고, 내장 분류 추천이 학습에 우선 반영해요. 앞으로의 활동에도
-          적용하려면 규칙 탭에서 규칙을 추가하세요.
+        <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 11 }}>
+          기록을 선택해 분류를 바꾸면 그 기록에만 적용되고, 내장 분류 추천이 학습에 우선 반영해요. 지금 규칙과 결과가
+          다르면 앞으로도 적용하는 버튼이 나타나요.
         </div>
       </div>
     </div>

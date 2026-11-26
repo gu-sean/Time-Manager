@@ -132,9 +132,7 @@ class ActivityTrackerTests(unittest.TestCase):
             notifier=FakeNotifier(),
         )
 
-        target = tracker._safe_active_target()
-        self.assertEqual("Unknown", target.app_name)
-        self.assertIn("Monitor error", target.window_title)
+        self.assertIsNone(tracker._safe_active_target())
 
     def test_idle_failure_falls_back_to_zero(self) -> None:
         class ExplodingMonitor(FakeMonitor):
@@ -239,15 +237,15 @@ class EndOfDayNotificationTests(unittest.TestCase):
         tracker, notifier = self._tracker(work_end_hour=18)
         with patch("time_manager.tracker._time") as mock_time:
             mock_time.localtime.return_value.tm_hour = 9
-            tracker._arm_end_of_day_notify()  # session started before work_end_hour
+            tracker._arm_end_of_day_notify()  # work_end_hour 전에 시작한 세션
             mock_time.localtime.return_value.tm_hour = 19
             tracker._maybe_end_of_day_notify()
         self.assertEqual(1, len(notifier.messages))
         self.assertEqual("오늘 하루 수고했어요", notifier.messages[0][0])
 
     def test_end_of_day_does_not_fire_when_app_launched_after_work_end_hour(self) -> None:
-        # Regression test: launching the app for the first time after work_end_hour
-        # has already passed must not immediately fire the summary notification.
+        # 회귀 테스트: work_end_hour 가 지난 뒤 앱을 처음 켜면
+        # 마무리 알림이 바로 뜨면 안 됨
         tracker, notifier = self._tracker(work_end_hour=18)
         with patch("time_manager.tracker._time") as mock_time:
             mock_time.localtime.return_value.tm_hour = 21
@@ -282,7 +280,7 @@ class EndOfDayNotificationTests(unittest.TestCase):
             tracker._maybe_end_of_day_notify()
             self.assertEqual(1, len(notifier.messages))
 
-            # User lowers work_end_hour mid-session; settings flow calls this.
+            # 사용 중 work_end_hour 를 앞당김 (설정 흐름이 호출)
             mock_time.localtime.return_value.tm_hour = 15
             tracker.work_end_hour = 20
             tracker.reset_end_of_day_state()

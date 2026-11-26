@@ -38,6 +38,7 @@ def run_webview(
         width=1040,
         height=700,
         resizable=True,
+        min_size=(760, 560),  # 이보다 작으면 화면 배치가 내용을 담지 못함
         background_color="#F6F5F0",
     )
     try:

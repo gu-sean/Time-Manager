@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { previewAiRequest } from '../api';
 import { useAiRequest } from '../hooks/useAiRequest';
 import { AiFailure, AiPreview, AiProgress } from './AiRequestControls';
+import CoachingHistory from './CoachingHistory';
 import type { AICoaching, ReviewData, ReviewStatGroup } from '../types';
 
 function StatGroupCard({
@@ -63,7 +64,7 @@ function AiCoachingCard({ external, dateIso, onGetCoaching }: AiCoachingCardProp
   const [notice, setNotice] = useState<{ message: string; offerBuiltin: boolean } | null>(null);
 
   const changeScope = (next: CoachingScope) => {
-    request.cancel(); // an answer for the other range must not appear here
+    request.cancel(); // 다른 범위의 응답이 여기에 표시되면 안 됨
     setScope(next);
     setResult(null);
     setNotice(null);
@@ -91,29 +92,20 @@ function AiCoachingCard({ external, dateIso, onGetCoaching }: AiCoachingCardProp
       <div className="tm-rule-list-head" style={{ marginBottom: 6 }}>
         <div className="tm-card-title">✨ 맞춤 코칭</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button
-            className={`tm-btn-small ${scope === 'day' ? 'tm-btn-primary' : 'tm-btn-ghost'}`}
-            type="button"
-            aria-pressed={scope === 'day'}
-            onClick={() => changeScope('day')}
-          >
-            선택한 날
-          </button>
-          <button
-            className={`tm-btn-small ${scope === 'week' ? 'tm-btn-primary' : 'tm-btn-ghost'}`}
-            type="button"
-            aria-pressed={scope === 'week'}
-            onClick={() => changeScope('week')}
-          >
-            최근 7일
-          </button>
+          <div className="tm-segment" role="group" aria-label="코칭 범위">
+            {(['day', 'week'] as const).map((value) => (
+              <button key={value} type="button" aria-pressed={scope === value} onClick={() => changeScope(value)}>
+                {value === 'day' ? '선택한 날' : '최근 7일'}
+              </button>
+            ))}
+          </div>
           <button className="tm-btn-small tm-btn-primary" type="button" disabled={loading} onClick={() => run(!!result)}>
             {loading ? '분석 중…' : result ? '다시 분석' : '코칭 받기'}
           </button>
         </div>
       </div>
       {!result && !loading && !notice && (
-        <div style={{ fontSize: 11, color: '#A79F92' }}>
+        <div style={{ fontSize: 11, color: 'var(--tm-muted)' }}>
           {external
             ? '선택한 AI 서버로 집계된 시간 통계와 앱·도메인 이름만 전송해 코칭을 만들어요.'
             : '이 PC의 기록 통계로 코칭을 만들어요. 아무것도 전송하지 않습니다.'}
@@ -140,7 +132,7 @@ function AiCoachingCard({ external, dateIso, onGetCoaching }: AiCoachingCardProp
           )}
           {result.actions.length > 0 && (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#C19A45', marginBottom: 2 }}>이렇게 해보세요</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--tm-gold)', marginBottom: 2 }}>이렇게 해보세요</div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6 }}>
                 {result.actions.map((line) => (
                   <li key={line}>{line}</li>
@@ -148,12 +140,15 @@ function AiCoachingCard({ external, dateIso, onGetCoaching }: AiCoachingCardProp
               </ul>
             </>
           )}
-          <div style={{ fontSize: 10.5, color: '#A79F92', marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--tm-muted)', marginTop: 8 }}>
             {result.scopeLabel} 기준 · {result.source}
+            {result.reused && ' · 저장된 결과 (다시 전송하지 않음)'}
             {result.generated && ' · AI가 생성한 요약이라 부정확할 수 있어요.'}
           </div>
         </div>
       )}
+      {/* 분석마다 다시 마운트: 열린 목록에 지난 항목이 남지 않음 */}
+      <CoachingHistory key={result?.savedAt ?? 'none'} />
     </div>
   );
 }
@@ -212,7 +207,7 @@ export default function Review({ data, external, dateIso, onGetCoaching }: Revie
               {h.value}
             </div>
             {h.time && (
-              <div className="tm-review-highlight-time" style={{ color: h.color }}>
+              <div className="tm-review-highlight-time" style={{ color: `color-mix(in srgb, ${h.color} 60%, var(--tm-ink))` }}>
                 {h.time}
               </div>
             )}

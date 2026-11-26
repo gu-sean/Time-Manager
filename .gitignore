@@ -5,17 +5,17 @@ __pycache__/
 .venv/
 venv/
 
-# Web UI
+# 웹 UI
 webui/node_modules/
 webui/dist/
 
-# Builds (the .spec file and installer script are tracked)
+# 빌드 결과 (.spec 파일과 설치 스크립트는 추적)
 /build/
 /dist/
 installer/Output/
 
-# Local user data: activity records, backups and logs must never be committed.
-# rules.json is tracked as the default rule set.
+# 사용자 로컬 데이터: 활동 기록·백업·로그는 커밋 금지
+# rules.json 은 기본 규칙이므로 추적
 /data/
 *.sqlite3
 *.sqlite3-wal
@@ -23,14 +23,18 @@ installer/Output/
 *.sqlite3.enc
 *.log
 
-# Secrets
+# 비밀 정보
 .env
 .env.*
 
-# Editors and OS
+# 편집기·OS
 .vscode/
 .idea/
 .claude/settings.local.json
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# 내부 문서: 이 PC 에만 보관 (docs/screenshots 는 README 에서 사용하므로 추적)
+/docs/*.md
+/CONTRIBUTING.md

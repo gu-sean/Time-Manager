@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import threading
 import time as _time
@@ -8,6 +9,10 @@ from typing import Callable
 from urllib.parse import urlparse, urlunparse
 
 _log = logging.getLogger(__name__)
+# 이 횟수만큼 연속 실패하면 기록이 안 되고 있음을 사용자에게 알림
+_FAILURES_TO_REPORT = 3
+# 이 앱의 다른 인스턴스 (실행 중인 자신은 프로세스 id 로 식별)
+_OWN_EXECUTABLES = frozenset({"timemanager.exe", "timemanagerweb.exe"})
 
 from time_manager.models import ActiveTarget, Category, ClassifiedActivity
 from time_manager.notifications import Notifier, default_notifier
@@ -33,7 +38,6 @@ class ActivityTracker:
     unproductive_alert_seconds: int = 30 * 60
     productive_alert_seconds: int = 60 * 60
     work_end_hour: int = 18
-    exclude_self_app: bool = True
     store_domain_only: bool = False
     store_window_titles: bool = True
     monitor: PlatformMonitor = field(default_factory=default_monitor)
@@ -51,6 +55,8 @@ class ActivityTracker:
     _last_monitor_status: str = field(default="", init=False)
     _end_of_day_notified_date: str = field(default="", init=False)
     _work_end_armed: bool = field(default=False, init=False)
+    _failures_in_a_row: int = field(default=0, init=False)
+    _last_failure: str = field(default="", init=False)
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -92,44 +98,63 @@ class ActivityTracker:
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
-            if self._paused_event.is_set():
-                self._stop_event.wait(self.poll_seconds)
-                continue
-
-            idle_seconds = self._safe_idle_seconds()
-            if idle_seconds >= self.idle_threshold_seconds:
-                if not self._idle_status_sent:
-                    self._emit_status(f"자리 비움 감지({idle_seconds // 60}분). 기록을 잠시 멈췄습니다.")
-                    self._idle_status_sent = True
-                self._reset_streak()
-                self._stop_event.wait(self.poll_seconds)
-                continue
-
-            if self._idle_status_sent:
-                self._emit_status("활동이 다시 감지되었습니다. 실시간 기록 중")
-                self._idle_status_sent = False
-
-            target = self._safe_active_target()
-            if self._should_skip_target(target):
-                self._stop_event.wait(self.poll_seconds)
-                continue
-            activity = self.classifier.classify(target)
-            stored_activity = self._privacy_filtered_activity(activity)
-            self.store.record(stored_activity, self.poll_seconds)
-            self._last_activity = activity
-            self._update_streak(activity)
-            self._maybe_end_of_day_notify()
-            if self.on_activity:
-                self.on_activity(stored_activity)
-            self._emit_monitor_status()
+            # 한 번의 실패(DB 잠김, 디스크 부족, 알림 오류)로 스레드가 끝나면 안 됨
+            # (알림 없이 기록이 영구 중단됨)
+            try:
+                self._tick()
+            except Exception as exc:
+                self._failures_in_a_row += 1
+                self._last_failure = type(exc).__name__
+                if self._failures_in_a_row in (1, _FAILURES_TO_REPORT) or self._failures_in_a_row % 100 == 0:
+                    _log.exception("tracking failed (%d in a row)", self._failures_in_a_row)
             self._stop_event.wait(self.poll_seconds)
 
-    def _safe_active_target(self) -> ActiveTarget:
+    @property
+    def problem(self) -> str:
+        """지금 활동이 기록되지 않는 이유. 정상이면 ""."""
+        if self._failures_in_a_row < _FAILURES_TO_REPORT or self.is_paused:
+            return ""
+        return (
+            f"활동을 기록하지 못하고 있어요 ({self._last_failure}). 디스크 공간과 데이터 폴더 권한을 확인하세요. "
+            "계속 다시 시도합니다."
+        )
+
+    def _tick(self) -> None:
+        if self._paused_event.is_set():
+            return
+
+        idle_seconds = self._safe_idle_seconds()
+        if idle_seconds >= self.idle_threshold_seconds:
+            if not self._idle_status_sent:
+                self._emit_status(f"자리 비움 감지({idle_seconds // 60}분). 기록을 잠시 멈췄습니다.")
+                self._idle_status_sent = True
+            self._reset_streak()
+            return
+
+        if self._idle_status_sent:
+            self._emit_status("활동이 다시 감지되었습니다. 실시간 기록 중")
+            self._idle_status_sent = False
+
+        target = self._safe_active_target()
+        if target is None or self._should_skip_target(target):
+            return
+        activity = self.classifier.classify(target)
+        stored_activity = self._privacy_filtered_activity(activity)
+        self.store.record(stored_activity, self.poll_seconds)
+        self._failures_in_a_row = 0
+        self._last_activity = activity
+        self._update_streak(activity)
+        self._maybe_end_of_day_notify()
+        if self.on_activity:
+            self.on_activity(stored_activity)
+        self._emit_monitor_status()
+
+    def _safe_active_target(self) -> ActiveTarget | None:
         try:
             return self.monitor.get_active_target()
-        except Exception as exc:
+        except Exception as exc:  # 지어낸 "Unknown" 활동을 기록하면 통계가 왜곡됨
             _log.warning("get_active_target failed: %s", exc)
-            return ActiveTarget(app_name="Unknown", window_title=f"Monitor error: {exc}")
+            return None
 
     def current_streak(self) -> tuple[Category | None, int]:
         return self._streak_category, self._streak_seconds
@@ -175,9 +200,8 @@ class ActivityTracker:
             self._streak_alert_sent = True
 
     def _arm_end_of_day_notify(self) -> None:
-        # Only allow the end-of-day notification to fire if we were actually running
-        # before work_end_hour and later cross it — not simply because the app happens
-        # to be launched after that hour has already passed.
+        # 하루 마무리 알림은 work_end_hour 전부터 실행하다 그 시각을 지날 때만 허용
+        # (그 시각 이후에 앱을 켠 것만으로는 알리지 않음)
         self._work_end_armed = _time.localtime().tm_hour < self.work_end_hour
 
     def _maybe_end_of_day_notify(self) -> None:
@@ -218,9 +242,6 @@ class ActivityTracker:
             self._emit_status(status)
         self._last_monitor_status = status
 
-    def set_exclude_self_app(self, enabled: bool) -> None:
-        self.exclude_self_app = enabled
-
     def set_privacy_options(self, store_domain_only: bool, store_window_titles: bool) -> None:
         self.store_domain_only = store_domain_only
         self.store_window_titles = store_window_titles
@@ -236,14 +257,10 @@ class ActivityTracker:
         )
 
     def _should_skip_target(self, target: ActiveTarget) -> bool:
+        # 이 앱을 보는 시간은 기록하지 않음
         app_name = target.app_name.lower()
-        if self.exclude_self_app:
-            if app_name == "timemanager.exe":
-                return True
-            if app_name in {"python.exe", "pythonw.exe"}:
-                title = target.window_title.lower()
-                if "시간 관리 매니저" in title or "time manager" in title:
-                    return True
+        if target.process_id == os.getpid() or app_name in _OWN_EXECUTABLES:
+            return True
         excluded = {item.lower() for item in self.classifier.excluded_apps}
         return app_name in excluded
 

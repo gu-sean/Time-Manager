@@ -4,8 +4,9 @@ import { cancelAiRequest } from '../api';
 const newRequestId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /**
- * One cancellable analysis at a time. Answers that arrive after a cancel (or after
- * the component is gone) are dropped, so they never overwrite what is on screen.
+ * 취소 가능한 분석을 한 번에 하나만 실행.
+ *
+ * - 취소 후(또는 컴포넌트가 사라진 뒤) 도착한 응답은 버림 → 화면을 덮지 않음
  */
 export function useAiRequest() {
   const currentRef = useRef<string | null>(null);
@@ -28,10 +29,10 @@ export function useAiRequest() {
     return true;
   }, []);
 
-  // Leaving the page stops the request instead of letting the model keep working.
+  // 화면을 벗어나면 모델이 계속 작업하지 않도록 요청 중단
   useEffect(() => () => void cancel(), [cancel]);
 
-  /** Resolves to null when the request was cancelled or replaced. */
+  /** 취소되거나 새 요청으로 대체되면 null. */
   const run = useCallback(
     async <T,>(task: (requestId: string) => Promise<T>): Promise<T | null> => {
       cancel();

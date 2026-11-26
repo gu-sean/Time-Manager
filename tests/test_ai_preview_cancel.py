@@ -33,7 +33,7 @@ class TestPreview:
     def test_matches_what_is_actually_sent(self, model_api: WebApi, kind: str) -> None:
         with patch("time_manager.ai.complete", return_value="[]") as sent:
             preview = model_api.preview_ai_request(kind, "day")
-            sent.assert_not_called()  # previewing sends nothing
+            sent.assert_not_called()  # 미리보기는 아무것도 보내지 않음
             if kind == "suggestions":
                 model_api.get_ai_rule_suggestions()
             else:
@@ -102,7 +102,7 @@ class TestBuiltinFallback:
 
 
 class HangingServer:
-    """Accepts requests, never answers, and notes when a client goes away."""
+    """요청을 받기만 하고 답하지 않으며, 클라이언트 연결 종료를 기록."""
 
     def __init__(self) -> None:
         self.socket = socket.socket()
@@ -143,7 +143,7 @@ def hanging() -> Iterator[HangingServer]:
 
 def _use_hanging_model(api: WebApi, service: str, server: HangingServer, monkeypatch: pytest.MonkeyPatch) -> None:
     api._ai_keys = FakeKeys("sk-ant-test-key-0123456789")
-    if service == "claude":  # its address is fixed, so point the service itself at the test server
+    if service == "claude":  # 주소가 고정이므로 서비스 자체를 테스트 서버로 지정
         monkeypatch.setitem(ai.SERVICES, "claude", dataclasses.replace(ai.SERVICES["claude"], base_url=server.url))
         assert "error" not in api.save_ai_settings("model", "claude", "claude-haiku-4-5")
     else:
@@ -203,4 +203,4 @@ class TestCancel:
         with patch("time_manager.ai.complete", side_effect=cancelled_midway):
             model_api.get_ai_coaching("day", None, False, "r1")
 
-        assert model_api._ai_coaching_cache() == {}
+        assert model_api.get_coaching_history() == []

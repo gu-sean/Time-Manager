@@ -1,11 +1,11 @@
-; Inno Setup script for Time Manager.
-; Build with: ISCC.exe installer\TimeManager.iss  (after building dist\TimeManager.exe)
-; Produces installer\Output\TimeManager-Setup-<version>.exe
+﻿; Time Manager 용 Inno Setup 스크립트
+; - 빌드: ISCC.exe installer\TimeManager.iss  (dist\TimeManager.exe 빌드 후)
+; - 결과물: installer\Output\TimeManager-Setup-<version>.exe
 ;
-; Keep AppVersion in sync with time_manager/__version__.
+; AppVersion 은 time_manager/__version__ 과 일치시킬 것
 
 #define AppName "Time Manager"
-#define AppVersion "1.1.0"
+#define AppVersion "1.2.0"
 #define AppExe "TimeManager.exe"
 
 [Setup]
@@ -24,7 +24,7 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
-; User data lives in %APPDATA%\TimeManager and is intentionally NOT removed on uninstall.
+; 사용자 데이터(%APPDATA%\TimeManager)는 제거할 때 의도적으로 남김
 
 [Languages]
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"

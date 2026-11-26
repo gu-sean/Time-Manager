@@ -27,11 +27,11 @@ class TestWeeklySummaryNotification:
     def test_skips_on_non_monday(self, api: WebApi) -> None:
         notifier = FakeNotifier()
         api.tracker.notifier = notifier
-        api.settings.last_weekly_summary_notified = ""  # fixture construction already ran this with the real date
+        api.settings.last_weekly_summary_notified = ""  # 픽스처 생성 때 실제 날짜로 이미 실행됨
         _with_progress(api, 3600, 1800)
 
         with patch("time_manager.webapi.weekly_summary.date") as mock_date:
-            mock_date.today.return_value = date(2026, 7, 21)  # Tuesday
+            mock_date.today.return_value = date(2026, 7, 21)  # 화요일
             api._maybe_weekly_summary_notify()
 
         assert notifier.messages == []
@@ -40,11 +40,11 @@ class TestWeeklySummaryNotification:
     def test_sends_and_persists_on_monday(self, api: WebApi) -> None:
         notifier = FakeNotifier()
         api.tracker.notifier = notifier
-        api.settings.last_weekly_summary_notified = ""  # fixture construction already ran this with the real date
-        _with_progress(api, 7200, 3600)  # 2h last week vs 1h the week before
+        api.settings.last_weekly_summary_notified = ""  # 픽스처 생성 때 실제 날짜로 이미 실행됨
+        _with_progress(api, 7200, 3600)  # 지난주 2시간, 지지난주 1시간
 
         with patch("time_manager.webapi.weekly_summary.date") as mock_date:
-            mock_date.today.return_value = date(2026, 7, 20)  # Monday
+            mock_date.today.return_value = date(2026, 7, 20)  # 월요일
             api._maybe_weekly_summary_notify()
 
         assert len(notifier.messages) == 1
@@ -58,11 +58,11 @@ class TestWeeklySummaryNotification:
     def test_does_not_double_notify_same_week(self, api: WebApi) -> None:
         notifier = FakeNotifier()
         api.tracker.notifier = notifier
-        api.settings.last_weekly_summary_notified = ""  # fixture construction already ran this with the real date
+        api.settings.last_weekly_summary_notified = ""  # 픽스처 생성 때 실제 날짜로 이미 실행됨
         _with_progress(api, 7200, 3600)
 
         with patch("time_manager.webapi.weekly_summary.date") as mock_date:
-            mock_date.today.return_value = date(2026, 7, 20)  # Monday
+            mock_date.today.return_value = date(2026, 7, 20)  # 월요일
             api._maybe_weekly_summary_notify()
             api._maybe_weekly_summary_notify()
 
@@ -71,8 +71,8 @@ class TestWeeklySummaryNotification:
     def test_declining_trend_uses_down_arrow(self, api: WebApi) -> None:
         notifier = FakeNotifier()
         api.tracker.notifier = notifier
-        api.settings.last_weekly_summary_notified = ""  # fixture construction already ran this with the real date
-        _with_progress(api, 1800, 3600)  # productivity dropped
+        api.settings.last_weekly_summary_notified = ""  # 픽스처 생성 때 실제 날짜로 이미 실행됨
+        _with_progress(api, 1800, 3600)  # 생산 시간 감소
 
         with patch("time_manager.webapi.weekly_summary.date") as mock_date:
             mock_date.today.return_value = date(2026, 7, 20)
@@ -82,11 +82,11 @@ class TestWeeklySummaryNotification:
         assert "▼" in body
 
     def test_no_notifier_send_does_not_crash(self, api: WebApi) -> None:
-        api.tracker.notifier = SimpleNamespace()  # no .send attribute
+        api.tracker.notifier = SimpleNamespace()  # .send 속성 없음
         _with_progress(api, 3600, 1800)
 
         with patch("time_manager.webapi.weekly_summary.date") as mock_date:
             mock_date.today.return_value = date(2026, 7, 20)
-            api._maybe_weekly_summary_notify()  # must not raise
+            api._maybe_weekly_summary_notify()  # 예외가 발생하면 안 됨
 
         assert api.settings.last_weekly_summary_notified != ""

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import Toggle from './Toggle';
+import { focusTimer, phaseSeconds } from '../focusTimerStore';
+import { formatClock } from '../time';
 import { getCurrentActivity } from '../api';
 import type { CurrentActivity, DashboardData } from '../types';
 
@@ -28,6 +30,25 @@ function formatElapsed(seconds: number): string {
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
   const s = String(seconds % 60).padStart(2, '0');
   return `${h}:${m}:${s}`;
+}
+
+/** 실행·일시정지 중인 타이머는 모든 화면에서 보임. */
+function TimerChip({ onOpen }: { onOpen: () => void }) {
+  const timer = useSyncExternalStore(focusTimer.subscribe, focusTimer.getState);
+  const running = timer.endsAt !== null;
+  const untouched = !running && timer.phase === 'focus' && timer.remaining === phaseSeconds(timer);
+  if (untouched) return null;
+  const phase = timer.phase === 'focus' ? '집중' : '휴식';
+  const state = running ? '' : timer.remaining === phaseSeconds(timer) ? ' 대기' : ' 일시정지';
+  return (
+    <button type="button" className={`tm-timer-chip ${timer.phase}`} onClick={onOpen} title="대시보드의 타이머로 이동">
+      <span>
+        {phase}
+        {state}
+      </span>
+      <strong>{formatClock(timer.remaining)}</strong>
+    </button>
+  );
 }
 
 export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTracking, dashboard, appVersion }: SidebarProps) {
@@ -93,7 +114,7 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
       </nav>
 
       <div className="tm-now-card">
-        <div className="tm-now-label">지금 추적 중</div>
+        <div className="tm-now-label">현재 활동</div>
         {current ? (
           <div className="tm-now-activity">
             <span className="tm-now-dot" style={{ background: current.color }} />
@@ -109,9 +130,11 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
 
       <div className="tm-sidebar-spacer" />
 
+      <TimerChip onOpen={() => onSelectPage('dashboard')} />
+
       <div className="tm-tracker">
         <div className="tm-tracker-left">
-          <Toggle checked={tracking} onChange={onToggleTracking} label="추적 토글" />
+          <Toggle checked={tracking} onChange={onToggleTracking} label="활동 추적" />
           <span className="tm-tracker-label">{tracking ? '추적 중' : '일시정지'}</span>
         </div>
         <span className="tm-tracker-elapsed">{formatElapsed(elapsed)}</span>

@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from time_manager.formatting import _format_seconds, _truncate
+from time_manager.formatting import _display_label, _format_seconds, _truncate
+from time_manager import notices
 from time_manager.models import Category
 
-from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals, _delta_text, _productivity_score
+from ._shared import CATEGORY_COLORS, WebApiBase, _CATEGORY_LABELS, _day_totals, _delta_text, _parse_day, _productivity_score
 
 
 class DashboardMixin(WebApiBase):
@@ -37,7 +38,7 @@ class DashboardMixin(WebApiBase):
 
     def get_dashboard(self, date_iso: str | None = None) -> dict[str, Any]:
         today = date.today()
-        selected_day = date.fromisoformat(date_iso) if date_iso else today
+        selected_day = _parse_day(date_iso)
         viewing_today = selected_day == today
         totals = _day_totals(self.store, selected_day)
         yesterday_totals = _day_totals(self.store, selected_day - timedelta(days=1))
@@ -103,7 +104,7 @@ class DashboardMixin(WebApiBase):
         top_apps = [
             {
                 "rank": index + 1,
-                "label": row.label,
+                "label": _display_label(row.label),
                 "time": _format_seconds(row.seconds),
                 "category": row.category.value,
                 "ratio": row.seconds / peak,
@@ -125,6 +126,8 @@ class DashboardMixin(WebApiBase):
             "dateLabel": "오늘" if viewing_today else selected_day.strftime("%Y년 %m월 %d일"),
             "viewingToday": viewing_today,
             "tracking": self.tracker.is_running and not self.tracker.is_paused,
+            "problem": self.tracker.problem,
+            "notices": notices.current(),
             "stats": stats,
             "donut": {"total": _format_seconds(total_seconds), "segments": donut_segments},
             "hourly": hourly,
@@ -141,7 +144,7 @@ class DashboardMixin(WebApiBase):
         if activity is None:
             return None
         target = activity.target
-        label = _truncate(target.url or target.window_title or target.app_name, 80)
+        label = _truncate(_display_label(target.url or target.window_title or target.app_name), 80)
         if not label:
             return None
         return {

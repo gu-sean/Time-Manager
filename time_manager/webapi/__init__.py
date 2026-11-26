@@ -7,9 +7,11 @@ from time_manager.storage import ActivityStore
 from time_manager.tracker import ActivityTracker
 
 from .ai import AIMixin
+from .ask import AskMixin
 from .backup import BackupMixin
 from .dashboard import DashboardMixin
 from .inbox import InboxMixin
+from .presets import PresetMixin
 from .report import ReportMixin
 from .review import ReviewMixin
 from .rules import RulesMixin
@@ -29,6 +31,8 @@ class WebApi(
     BackupMixin,
     WeeklySummaryMixin,
     AIMixin,
+    AskMixin,
+    PresetMixin,
 ):
     def __init__(
         self,

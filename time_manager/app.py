@@ -40,7 +40,6 @@ def _bootstrap(project_root: Path):
     tracker = ActivityTracker(
         store=store,
         classifier=classifier,
-        exclude_self_app=settings.exclude_self_app,
         store_domain_only=settings.store_domain_only,
         store_window_titles=settings.store_window_titles,
         unproductive_alert_seconds=settings.unproductive_limit_minutes * 60,

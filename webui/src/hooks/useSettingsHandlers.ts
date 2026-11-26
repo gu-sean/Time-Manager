@@ -1,6 +1,11 @@
 import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import {
+  createPreset,
+  deletePreset,
+  updatePreset,
+  addAiExclusion,
+  removeAiExclusion,
   applyPreset,
   clearAiApiKey,
   checkUpdate,
@@ -21,11 +26,10 @@ import {
   setTheme,
   testAiConnection,
   toggleAutoBackup,
-  toggleExcludeSelf,
   toggleNotifications,
   toggleStartup,
 } from '../api';
-import type { AIModelList, AISettingsInput, AITestResult, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
+import type { PresetItem, AIModelList, AISettingsInput, AITestResult, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RulesData, SettingsData, UpdateInfo } from '../types';
 
 interface Setters {
   setSettings: (data: SettingsData) => void;
@@ -52,11 +56,6 @@ export function useSettingsHandlers({
     const result = await saveSettings(payload);
     setSettings(result);
     setToast(result.error ? '' : '저장했습니다.');
-  }, []);
-
-  const handleToggleExcludeSelf = useCallback(async (enabled: boolean) => {
-    setSettings(await toggleExcludeSelf(enabled));
-    setToast(enabled ? '시간 관리자 앱을 기록에서 제외합니다.' : '시간 관리자 앱도 기록합니다.');
   }, []);
 
   const handleToggleAutoBackup = useCallback(async (enabled: boolean) => {
@@ -87,8 +86,34 @@ export function useSettingsHandlers({
   }, []);
 
   const handleApplyPreset = useCallback(async () => {
-    setSettings(await applyPreset());
-    setToast('프리셋 후보 규칙을 적용했습니다.');
+    const result = await applyPreset();
+    setSettings(result);
+    setToast(result.error ? '' : result.notice ?? '프리셋 후보 규칙을 적용했습니다.');
+    setRules(null); // 규칙 화면은 새 규칙으로 다시 로드
+  }, []);
+
+  const handleCreatePreset = useCallback(async (name: string, emoji: string, source: string) => {
+    const result = await createPreset(name, emoji, source);
+    // 폼에서 오류를 표시하므로 화면 아래에 반복하지 않음
+    if (!result.error) {
+      setSettings(result);
+      setToast('프리셋을 만들었습니다.');
+    }
+    return result;
+  }, []);
+
+  const handleUpdatePreset = useCallback(async (id: string, name: string, emoji: string, items: PresetItem[]) => {
+    const result = await updatePreset(id, name, emoji, items);
+    if (!result.error) {
+      setSettings(result);
+      setToast('프리셋을 저장했습니다. 규칙에 반영하려면 적용을 눌러주세요.');
+    }
+    return result;
+  }, []);
+
+  const handleDeletePreset = useCallback(async (id: string) => {
+    setSettings(await deletePreset(id));
+    setToast('프리셋을 삭제했습니다.');
   }, []);
 
   const handleRunDiagnostics = useCallback(async () => {
@@ -157,6 +182,17 @@ export function useSettingsHandlers({
     return listAiModels(service, baseUrl);
   }, []);
 
+  const handleAddAiExclusion = useCallback(async (value: string) => {
+    const result = await addAiExclusion(value);
+    setSettings(result);
+    if (!result.error) setToast('전송 제외 목록에 추가했습니다.');
+  }, []);
+
+  const handleRemoveAiExclusion = useCallback(async (value: string) => {
+    setSettings(await removeAiExclusion(value));
+    setToast(`'${value}'을(를) 전송 제외 목록에서 뺐습니다.`);
+  }, []);
+
   const handleTestAiConnection = useCallback(async (): Promise<AITestResult> => {
     return testAiConnection();
   }, []);
@@ -167,14 +203,18 @@ export function useSettingsHandlers({
     handleClearAiApiKey,
     handleTestAiConnection,
     handleListAiModels,
+    handleAddAiExclusion,
+    handleRemoveAiExclusion,
     handleSaveSettings,
-    handleToggleExcludeSelf,
     handleToggleAutoBackup,
     handleToggleStartup,
     handleToggleSettingsNotifications,
     handleSetTheme,
     handleSetProfile,
     handleApplyPreset,
+    handleCreatePreset,
+    handleUpdatePreset,
+    handleDeletePreset,
     handleRunDiagnostics,
     handleCheckUpdate,
     handleInstallUpdate,

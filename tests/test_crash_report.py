@@ -61,7 +61,7 @@ class HandleCrashTests(unittest.TestCase):
             with patch("time_manager.crash_report.subprocess.run", side_effect=OSError("no clip")), patch(
                 "time_manager.crash_report.webbrowser.open", side_effect=OSError("no browser")
             ), patch("time_manager.crash_report.ctypes.windll.user32.MessageBoxW", side_effect=OSError("no gui")):
-                crash_report.handle_crash(_make_exc(), data_dir)  # must not raise
+                crash_report.handle_crash(_make_exc(), data_dir)  # 예외가 발생하면 안 됨
 
 
 if __name__ == "__main__":

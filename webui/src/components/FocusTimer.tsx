@@ -1,68 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
-import { sendFocusNotification } from '../api';
+import { useSyncExternalStore } from 'react';
+import { FOCUS_PRESETS, focusTimer, phaseSeconds } from '../focusTimerStore';
+import { formatClock } from '../time';
 import type { FocusSummary } from '../types';
 
-type Phase = 'focus' | 'break';
-
-const FOCUS_PRESETS = [25, 50, 15];
-const BREAK_SECONDS = 5 * 60;
 const FOCUS_COLOR = '#7FA98A';
 const BREAK_COLOR = '#C19A45';
 
-function format(seconds: number): string {
-  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const s = String(seconds % 60).padStart(2, '0');
-  return `${m}:${s}`;
+function clockTime(ms: number): string {
+  const at = new Date(ms);
+  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
 }
 
 export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
-  const [focusMinutes, setFocusMinutes] = useState(FOCUS_PRESETS[0]);
-  const [phase, setPhase] = useState<Phase>('focus');
-  const [remaining, setRemaining] = useState(FOCUS_PRESETS[0] * 60);
-  const [running, setRunning] = useState(false);
-  const [completed, setCompleted] = useState(0);
-
-  const total = phase === 'focus' ? focusMinutes * 60 : BREAK_SECONDS;
+  const timer = useSyncExternalStore(focusTimer.subscribe, focusTimer.getState);
+  const { focusMinutes, phase, remaining, endsAt, completed } = timer;
+  const running = endsAt !== null;
+  const total = phaseSeconds(timer);
   const progress = total > 0 ? Math.min(1, (total - remaining) / total) : 0;
   const color = phase === 'focus' ? FOCUS_COLOR : BREAK_COLOR;
-
-  const phaseRef = useRef(phase);
-  phaseRef.current = phase;
-  const focusRef = useRef(focusMinutes);
-  focusRef.current = focusMinutes;
-
-  useEffect(() => {
-    if (!running) return;
-    const id = window.setInterval(() => {
-      setRemaining((prev) => {
-        if (prev > 1) return prev - 1;
-        // phase finished
-        if (phaseRef.current === 'focus') {
-          setCompleted((c) => c + 1);
-          setPhase('break');
-          setRunning(false);
-          void sendFocusNotification('집중 완료', `${focusRef.current}분 집중을 마쳤어요. 잠깐 쉬어요.`);
-          return BREAK_SECONDS;
-        }
-        setPhase('focus');
-        setRunning(false);
-        void sendFocusNotification('휴식 종료', '다시 집중해볼까요?');
-        return focusRef.current * 60;
-      });
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [running]);
-
-  const selectPreset = (minutes: number) => {
-    setFocusMinutes(minutes);
-    if (phase === 'focus' && !running) setRemaining(minutes * 60);
-  };
-
-  const reset = () => {
-    setRunning(false);
-    setPhase('focus');
-    setRemaining(focusMinutes * 60);
-  };
 
   const ringStyle = {
     background: `conic-gradient(${color} ${progress * 100}%, var(--timer-track, #EEE9E0) ${progress * 100}%)`,
@@ -79,10 +34,12 @@ export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
 
       <div className="tm-timer-ring" style={ringStyle}>
         <div className="tm-timer-ring-center">
-          <span className="tm-timer-time">{format(remaining)}</span>
+          <span className="tm-timer-time">{formatClock(remaining)}</span>
           <span className="tm-timer-sub">{completed}회 완료</span>
         </div>
       </div>
+
+      <div className="tm-timer-ends">{endsAt === null ? '' : `${clockTime(endsAt)}에 끝나요`}</div>
 
       <div className="tm-timer-presets">
         {FOCUS_PRESETS.map((m) => (
@@ -90,7 +47,8 @@ export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
             key={m}
             type="button"
             className={`tm-timer-preset${focusMinutes === m ? ' active' : ''}`}
-            onClick={() => selectPreset(m)}
+            onClick={() => focusTimer.selectMinutes(m)}
+            aria-pressed={focusMinutes === m}
             disabled={running}
           >
             {m}분
@@ -102,19 +60,19 @@ export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
         <button
           type="button"
           className="tm-btn-small tm-btn-primary tm-timer-main-btn"
-          onClick={() => setRunning((r) => !r)}
+          onClick={running ? focusTimer.pause : focusTimer.start}
         >
           {running ? '일시정지' : remaining === total ? '시작' : '계속'}
         </button>
-        <button type="button" className="tm-btn-small tm-btn-ghost" onClick={reset}>
+        <button type="button" className="tm-btn-small tm-btn-ghost" onClick={focusTimer.reset}>
           초기화
         </button>
       </div>
 
       {summary && summary.count > 0 && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border, #EEE9E0)', fontSize: 11.5, color: 'var(--tm-ink-4)', textAlign: 'center' }}>
-          오늘 25분+ 집중 구간 <strong style={{ color: FOCUS_COLOR }}>{summary.count}개</strong>
-          {summary.totalTime && <> · <strong style={{ color: FOCUS_COLOR }}>{summary.totalTime}</strong></>}
+          오늘 25분+ 집중 구간 <strong style={{ color: 'var(--tm-ok)' }}>{summary.count}개</strong>
+          {summary.totalTime && <> · <strong style={{ color: 'var(--tm-ok)' }}>{summary.totalTime}</strong></>}
         </div>
       )}
     </div>

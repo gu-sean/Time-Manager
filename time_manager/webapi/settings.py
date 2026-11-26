@@ -5,7 +5,6 @@ from typing import Any
 
 from time_manager import __version__
 from time_manager.diagnostics import run_diagnostics as _run_diagnostics
-from time_manager.rules import PROFILE_PRESETS, apply_profile_preset
 from time_manager.startup import disable as _startup_disable
 from time_manager.startup import enable as _startup_enable
 from time_manager.startup import is_enabled as _startup_is_enabled
@@ -14,26 +13,7 @@ from ._shared import WebApiBase
 
 
 class SettingsMixin(WebApiBase):
-    PROFILE_LABELS = {
-        "": "선택 안 함",
-        "developer": "개발자",
-        "student": "학생",
-        "office": "사무직",
-        "creator": "크리에이터",
-        "researcher": "연구자",
-        "designer": "디자이너",
-        "marketer": "마케터",
-        "finance": "재무/투자",
-        "manager": "매니저",
-    }
-
     def get_settings(self) -> dict[str, Any]:
-        profile = self.settings.onboarding_profile
-        preset_items = [
-            {"key": key, "value": value}
-            for key, values in PROFILE_PRESETS.get(profile, {}).items()
-            for value in values
-        ]
         return {
             "appVersion": __version__,
             "dailyGoalMinutes": self.settings.daily_goal_minutes,
@@ -42,10 +22,7 @@ class SettingsMixin(WebApiBase):
             "unproductiveLimitMinutes": self.settings.unproductive_limit_minutes,
             "workStartHour": self.settings.work_start_hour,
             "workEndHour": self.settings.work_end_hour,
-            "profile": profile,
-            "profileOptions": [{"value": k, "label": v} for k, v in self.PROFILE_LABELS.items()],
-            "presetItems": preset_items,
-            "excludeSelf": self.settings.exclude_self_app,
+            **self._preset_settings_payload(),
             "notificationsEnabled": self.settings.notifications_enabled,
             "autoBackupEnabled": self.settings.auto_backup_enabled,
             "storeDomainOnly": self.settings.store_domain_only,
@@ -125,12 +102,6 @@ class SettingsMixin(WebApiBase):
         self.settings_store.save(self.settings)
         return self.get_settings()
 
-    def toggle_exclude_self(self, enabled: bool) -> dict[str, Any]:
-        self.settings.exclude_self_app = bool(enabled)
-        self.tracker.set_exclude_self_app(self.settings.exclude_self_app)
-        self.settings_store.save(self.settings)
-        return self.get_settings()
-
     def toggle_startup(self, enabled: bool) -> dict[str, Any]:
         try:
             if enabled:
@@ -146,16 +117,6 @@ class SettingsMixin(WebApiBase):
         self.settings_store.save(self.settings)
         if self.settings.auto_backup_enabled:
             self._maybe_auto_backup()
-        return self.get_settings()
-
-    def set_profile(self, profile: str) -> dict[str, Any]:
-        self.settings.onboarding_profile = profile
-        self.settings_store.save(self.settings)
-        return self.get_settings()
-
-    def apply_preset(self) -> dict[str, Any]:
-        if self.settings.onboarding_profile:
-            self.tracker.classifier = apply_profile_preset(self.rules_path, self.settings.onboarding_profile)
         return self.get_settings()
 
     def export_logs(self) -> dict[str, str]:

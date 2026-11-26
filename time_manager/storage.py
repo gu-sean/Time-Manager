@@ -1,4 +1,5 @@
 import csv
+import json
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -144,6 +145,16 @@ class WeeklyProgress:
 
 
 @dataclass(frozen=True)
+class EventTarget:
+    """기록 하나의 대상과 현재 분류."""
+
+    app_name: str
+    title: str
+    url: str | None
+    category: Category
+
+
+@dataclass(frozen=True)
 class ActivityEvent:
     id: int
     started_at: str
@@ -207,8 +218,8 @@ class ActivityStore:
             or reason != activity.reason
         ):
             return False
-        # 같은 URL이면 창 제목이 바뀌어도 동일 활동으로 병합(예: 같은 사이트 내 페이지 이동).
-        # URL이 없으면 창 제목이 완전히 일치해야 병합.
+        # 같은 URL 이면 창 제목이 바뀌어도 병합 (같은 사이트 안의 페이지 이동 등)
+        # URL 이 없으면 창 제목이 완전히 같아야 병합
         if target.url:
             if url != target.url:
                 return False
@@ -446,9 +457,9 @@ class ActivityStore:
     def app_domain_totals(
         self, start_day: date, end_day: date, *, unmatched_only: bool = False
     ) -> list[BreakdownRow]:
-        """Totals grouped by domain (when a URL exists) or app name — never by window title.
+        """도메인(URL 이 있을 때) 또는 앱 이름별 합계. 창 제목으로는 묶지 않음.
 
-        Used for AI features so that window titles and URL paths stay on the device.
+        - AI 기능에서 사용: 창 제목·URL 경로가 PC 밖으로 나가지 않게 함
         """
         from time_manager.rules import _domain_from_url
 
@@ -476,6 +487,61 @@ class ActivityStore:
         ranked = sorted(totals.items(), key=lambda item: item[1], reverse=True)
         return [BreakdownRow(target, category, seconds) for (target, category), seconds in ranked]
 
+    def ensure_schema(self) -> None:
+        """없는 테이블 추가 (예: 구버전 백업으로 DB 파일이 교체된 경우)."""
+        self._init_db()
+
+    # -- 코칭 기록: 기간·분석 방식별 최신 결과 -------------------------------------
+
+    def save_coaching(
+        self, *, scope: str, start_day: str, end_day: str, source: str, generated: bool,
+        headline: str, insights: list[str], actions: list[str], fingerprint: str,
+    ) -> str:
+        created_at = datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO coaching_history
+                    (created_at, scope, start_day, end_day, source, generated, headline, insights, actions, fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    created_at, scope, start_day, end_day, source, int(generated), headline,
+                    json.dumps(insights, ensure_ascii=False), json.dumps(actions, ensure_ascii=False), fingerprint,
+                ),
+            )
+        return created_at
+
+    def find_coaching(self, fingerprint: str) -> dict[str, object] | None:
+        """완전히 같은 요청으로 저장된 결과 (있으면)."""
+        rows = self._coaching_rows("WHERE fingerprint = ?", (fingerprint,), 1)
+        return rows[0] if rows else None
+
+    def list_coaching(self, limit: int = 50) -> list[dict[str, object]]:
+        return self._coaching_rows("", (), limit)
+
+    def _coaching_rows(self, where: str, params: tuple[object, ...], limit: int) -> list[dict[str, object]]:
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT id, created_at, scope, start_day, end_day, source, generated, headline, insights, actions"
+                f" FROM coaching_history {where} ORDER BY created_at DESC, id DESC LIMIT ?",
+                (*params, limit),
+            ).fetchall()
+        keys = ("id", "createdAt", "scope", "startDay", "endDay", "source", "generated", "headline")
+        return [
+            {**dict(zip(keys, row)), "generated": bool(row[6]),
+             "insights": json.loads(row[8]), "actions": json.loads(row[9])}
+            for row in rows
+        ]
+
+    def delete_coaching(self, entry_id: int) -> None:
+        with self._connection() as conn:
+            conn.execute("DELETE FROM coaching_history WHERE id = ?", (entry_id,))
+
+    def clear_coaching(self) -> None:
+        with self._connection() as conn:
+            conn.execute("DELETE FROM coaching_history")
+
     def first_activity_day(self) -> date | None:
         with self._connection() as conn:
             row = conn.execute(
@@ -486,9 +552,9 @@ class ActivityStore:
     def activity_signatures(
         self, start_day: date | None = None, end_day: date | None = None
     ) -> list[Signature]:
-        """Distinct activity combinations for the on-device classifier.
+        """내장 분류기에 쓰는 서로 다른 활동 조합.
 
-        Includes window titles, so the result must never leave this PC.
+        - 창 제목이 포함되므로 결과를 PC 밖으로 보내면 안 됨
         """
         sql = """
             SELECT app_name, COALESCE(url, ''), window_title, category, reason, COALESCE(SUM(seconds), 0)
@@ -669,6 +735,16 @@ class ActivityStore:
             weekly_goal_minutes=weekly_goal_minutes,
         )
 
+    def get_event(self, event_id: int) -> EventTarget | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT app_name, window_title, url, category FROM activity_events WHERE id = ? AND deleted_at IS NULL",
+                (event_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return EventTarget(str(row[0] or ""), str(row[1] or ""), row[2], Category(row[3]))
+
     def reclassify_event(self, event_id: int, category: Category) -> None:
         with self._connection() as conn:
             conn.execute(
@@ -689,7 +765,7 @@ class ActivityStore:
             )
 
     def purge_older_than(self, retention_days: int, reference_day: date | None = None) -> int:
-        # retention_days <= 0이면 삭제 안 함. 기준일 당일 포함 이후 데이터는 유지.
+        # retention_days <= 0 이면 삭제 안 함. 기준일 당일을 포함한 이후 데이터는 유지
         if retention_days <= 0:
             return 0
         today = reference_day or date.today()
@@ -701,12 +777,14 @@ class ActivityStore:
                 (cutoff,),
             )
             removed = cursor.rowcount
+            # 코칭 결과도 같은 활동을 인용하므로 같은 보존 기간 적용
+            conn.execute("DELETE FROM coaching_history WHERE end_day < ?", (cutoff_day.isoformat(),))
         if removed > 0:
             self._vacuum()
         return removed if removed and removed > 0 else 0
 
     def _vacuum(self) -> None:
-        # VACUUM은 exclusive 접근이 필요하므로 스레드 로컬 연결을 먼저 해제
+        # VACUUM 은 배타적 접근이 필요 → 스레드 로컬 연결을 먼저 해제
         if hasattr(self._local, 'conn'):
             self._local.conn.close()
             del self._local.conn
@@ -814,19 +892,7 @@ class ActivityStore:
         return self.hourly_summaries_between(start_day, end_day)
 
     def hourly_summaries_between(self, start_day: date, end_day: date) -> list[HourSummary]:
-        start, end = self._period_bounds(start_day, end_day)
-        with self._connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT CAST(SUBSTR(started_at, 12, 2) AS INTEGER) AS hour, category, COALESCE(SUM(seconds), 0)
-                FROM activity_events
-                WHERE started_at >= ? AND started_at < ?
-                    AND deleted_at IS NULL
-                GROUP BY hour, category
-                ORDER BY hour ASC
-                """,
-                (start, end),
-            ).fetchall()
+        rows = [(hour, category, seconds) for _, hour, category, seconds, _, _ in self._clock_hour_slices(start_day, end_day)]
         by_hour = {hour: {category: 0 for category in Category} for hour in range(24)}
         for hour, category, seconds in rows:
             by_hour[int(hour)][Category(category)] = int(seconds)
@@ -869,30 +935,53 @@ class ActivityStore:
         ]
 
     def weekday_hour_totals_between(self, start_day: date, end_day: date) -> list[list[int]]:
-        # 요일(월=0 ~ 일=6) × 시간(0~23) 2차원 배열로 총 추적 초 반환
-        start, end = self._period_bounds(start_day, end_day)
+        # 요일(월=0 ~ 일=6) × 시간(0~23) 2차원 배열: 총 추적 초
+        grid = [[0 for _ in range(24)] for _ in range(7)]
+        for day, hour, _, seconds, _, _ in self._clock_hour_slices(start_day, end_day):
+            grid[day.weekday()][hour] += seconds
+        return grid
+
+    def target_hour_totals(self, start_day: date, end_day: date) -> list[tuple[int, BreakdownRow]]:
+        """``app_domain_totals`` 와 같되 하루의 시각(0~23시)별로 나눔."""
+        from time_manager.rules import _domain_from_url
+
+        totals: dict[tuple[int, str, str], int] = {}
+        for _, hour, category, seconds, app_name, url in self._clock_hour_slices(start_day, end_day):
+            target = _domain_from_url(url) or app_name.strip()
+            if target:
+                key = (hour, target, category)
+                totals[key] = totals.get(key, 0) + seconds
+        return [
+            (hour, BreakdownRow(target, Category(category), seconds))
+            for (hour, target, category), seconds in totals.items()
+        ]
+
+    def _clock_hour_slices(
+        self, start_day: date, end_day: date
+    ) -> Iterator[tuple[date, int, str, int, str, str]]:
+        """실제 사용한 시각별 조각: (날짜, 시, 분류, 초, 앱, url).
+
+        - 이어진 사용은 첫 시점에서 시작하는 한 행으로 저장 → 지나간 정시마다 잘라야 함
+        - 기간 전날도 읽음: 전날 마지막 행이 자정을 넘길 수 있음
+        """
+        start, end = self._period_bounds(start_day - timedelta(days=1), end_day)
         with self._connection() as conn:
             rows = conn.execute(
                 """
-                SELECT
-                    CAST(strftime('%w', started_at) AS INTEGER) AS weekday,
-                    CAST(SUBSTR(started_at, 12, 2) AS INTEGER) AS hour,
-                    COALESCE(SUM(seconds), 0) AS total
+                SELECT started_at, seconds, category, COALESCE(app_name, ''), COALESCE(url, '')
                 FROM activity_events
                 WHERE started_at >= ? AND started_at < ?
                     AND deleted_at IS NULL
-                GROUP BY weekday, hour
                 """,
                 (start, end),
             ).fetchall()
-        grid = [[0 for _ in range(24)] for _ in range(7)]
-        for sqlite_weekday, hour, total in rows:
-            weekday = (int(sqlite_weekday) + 6) % 7
-            grid[weekday][int(hour)] = int(total)
-        return grid
+        for started_at, seconds, category, app_name, url in rows:
+            for day, hour, part in _split_by_hour(str(started_at), int(seconds)):
+                if start_day <= day <= end_day:
+                    yield day, hour, category, part, str(app_name), str(url)
 
     def close(self) -> None:
-        """Close the calling thread's SQLite connection (call before encrypting the DB file)."""
+        """호출한 스레드의 SQLite 연결 닫기 (DB 파일 암호화 전에 호출)."""
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             conn.close()
@@ -935,6 +1024,24 @@ class ActivityStore:
             if "deleted_at" not in columns:
                 conn.execute("ALTER TABLE activity_events ADD COLUMN deleted_at TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_started_at ON activity_events(started_at)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS coaching_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    start_day TEXT NOT NULL,
+                    end_day TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    generated INTEGER NOT NULL,
+                    headline TEXT NOT NULL,
+                    insights TEXT NOT NULL,
+                    actions TEXT NOT NULL,
+                    fingerprint TEXT NOT NULL,
+                    UNIQUE (scope, start_day, end_day, source)
+                )
+                """
+            )
 
     def _day_bounds(self, day: date) -> tuple[str, str]:
         local_timezone = datetime.now().astimezone().tzinfo
@@ -950,8 +1057,21 @@ class ActivityStore:
         return start, end
 
 
-# 스프레드시트가 수식 시작으로 인식하는 문자 목록.
-# 창 제목·URL은 외부 입력이므로 =cmd|'/c calc'!A1 같은 수식 인젝션(CWE-1236) 위험이 있음.
+def _split_by_hour(started_at: str, seconds: int) -> Iterator[tuple[date, int, int]]:
+    try:
+        moment = datetime.fromisoformat(started_at)
+    except ValueError:
+        return
+    while seconds > 0:
+        next_hour = moment.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        part = min(seconds, max(1, int((next_hour - moment).total_seconds())))
+        yield moment.date(), moment.hour, part
+        seconds -= part
+        moment = next_hour
+
+
+# 스프레드시트가 수식 시작으로 인식하는 문자
+# 창 제목·URL 은 외부 입력: =cmd|'/c calc'!A1 같은 수식 인젝션(CWE-1236) 위험
 _CSV_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
 
 _CATEGORY_KO: dict[str, str] = {
@@ -964,7 +1084,7 @@ _CSV_HEADERS = ["날짜", "시작 시간", "종료 시간", "소요 시간", "�
 
 
 def _sanitize_csv_cell(cell: object) -> object:
-    # 수식 시작 문자 앞에 어포스트로피를 붙여 리터럴 텍스트로 강제. 숫자 셀은 그대로 반환.
+    # 수식 시작 문자 앞에 어포스트로피를 붙여 문자열로 강제 (숫자 셀은 그대로)
     if isinstance(cell, str) and cell.startswith(_CSV_FORMULA_TRIGGERS):
         return "'" + cell
     return cell

@@ -42,24 +42,23 @@ class DbCryptoTests(unittest.TestCase):
             self.assertEqual(plain_content, db_path.read_bytes())
 
     def test_decrypt_recovers_from_corrupted_plain_file(self) -> None:
-        # Regression test: an interrupted secure-delete during encrypt_and_replace can
-        # leave a zeroed, invalid activity.sqlite3 next to a valid .enc backup. On the
-        # next launch decrypt_if_needed must ignore the corrupt plain file and restore
-        # from the backup instead of letting the app try to open a non-database file.
+        # 회귀 테스트: encrypt_and_replace 의 안전 삭제가 중단되면
+        # 정상 .enc 옆에 0 으로 채워진 activity.sqlite3 가 남을 수 있음
+        # → 다음 실행의 decrypt_if_needed 는 손상된 평문을 무시하고 백업에서 복구해야 함
+        # (DB 가 아닌 파일을 열려고 하면 안 됨)
         with TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "activity.sqlite3"
             enc_path = Path(str(db_path) + ".enc")
             real_content = b"SQLite format 3\x00" + b"real-data"
-            db_path.write_bytes(b"\x00" * len(real_content))  # corrupted leftover
+            db_path.write_bytes(b"\x00" * len(real_content))  # 손상된 잔여 파일
             enc_path.write_bytes(Fernet(_FIXED_KEY).encrypt(real_content))
 
             self.assertTrue(db_crypto.decrypt_if_needed(db_path))
             self.assertEqual(real_content, db_path.read_bytes())
 
     def test_encrypt_restores_plaintext_when_unlink_fails(self) -> None:
-        # Regression test: if the final unlink of the plaintext file fails (e.g. a
-        # transient lock from an AV scanner) after it has already been zeroed, the
-        # plaintext must be restored rather than left corrupted.
+        # 회귀 테스트: 평문을 0 으로 채운 뒤 마지막 삭제가 실패하면 (백신의 일시적 잠금 등)
+        # 손상된 채 두지 말고 평문을 되돌려야 함
         with TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "activity.sqlite3"
             content = b"SQLite format 3\x00" + b"rest-of-db"

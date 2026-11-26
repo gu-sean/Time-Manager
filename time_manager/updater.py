@@ -66,7 +66,7 @@ def check_for_update(timeout: float = 6.0) -> dict[str, Any]:
 
 
 def download_and_launch_installer(asset_url: str, timeout: float = 60.0) -> dict[str, Any]:
-    """Download the installer asset and launch it, ready for the caller to quit the app."""
+    """설치 파일을 내려받아 실행. 호출한 쪽이 앱을 종료하면 됨."""
     if not asset_url:
         return {"started": False, "error": "다운로드 주소가 없습니다."}
     try:

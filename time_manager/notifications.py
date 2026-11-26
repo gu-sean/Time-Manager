@@ -87,7 +87,7 @@ class RecordingNotifier(Notifier):
         self.delegate.send(title, message)
 
     def alert(self, title: str, message: str) -> None:
-        # 알림 활성화 여부와 무관하게 전송 — 포커스 타이머처럼 사용자가 직접 시작한 경우
+        # 알림 설정과 무관하게 전송: 집중 타이머처럼 사용자가 직접 시작한 경우
         entry = NotificationEntry(
             created_at=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"),
             title=title,

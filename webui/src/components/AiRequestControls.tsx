@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { AIRequestPreview } from '../types';
 
 const SLOW_HINT_SECONDS = 10;
-const muted = { fontSize: 11, color: '#A79F92' } as const;
+const muted = { fontSize: 11, color: 'var(--tm-muted)' } as const;
 const block = {
   fontSize: 11,
   fontFamily: 'Consolas, monospace',
@@ -40,7 +40,7 @@ export function AiProgress({
   );
 }
 
-/** An error or cancel notice, with an explicit way to use the built-in analysis instead. */
+/** 오류·취소 안내. 내장 분석은 사용자가 직접 선택해야 사용. */
 export function AiFailure({ message, onUseBuiltin }: { message: string; onUseBuiltin?: () => void }) {
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
@@ -54,7 +54,7 @@ export function AiFailure({ message, onUseBuiltin }: { message: string; onUseBui
   );
 }
 
-/** Shows what would be sent to the user's model. Opening it sends nothing. */
+/** 사용자 모델에 보낼 내용 표시. 열기만 해서는 전송 없음. */
 export function AiPreview({ load }: { load: () => Promise<AIRequestPreview> }) {
   const [preview, setPreview] = useState<AIRequestPreview | null>(null);
   const [loading, setLoading] = useState(false);

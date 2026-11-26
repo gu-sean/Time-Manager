@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
-import { deleteEvent, getInbox, reclassifyEvent, restoreDeletedEvent } from '../api';
+import { addRuleForEvent, deleteEvent, getInbox, reclassifyEvent, restoreDeletedEvent } from '../api';
 import type { InboxData } from '../types';
 
 export function useInboxHandlers(
@@ -10,15 +10,20 @@ export function useInboxHandlers(
   onRecordsChanged: () => void,
   setToast: (msg: string) => void,
 ) {
-  const handleSearch = useCallback(async (query: string, category: string | null) => {
-    setInbox(await getInbox(query, category, selectedDayRef.current));
+  // 늦게 끝난 이전 검색이 이후 검색 결과를 덮지 않게 함
+  const latest = useRef(0);
+
+  const search = useCallback(async (query: string, category: string | null) => {
+    const mine = ++latest.current;
+    const next = await getInbox(query, category, selectedDayRef.current);
+    if (latest.current === mine) setInbox(next);
   }, []);
 
-  const handleClearSearch = useCallback(async () => {
-    setInbox(await getInbox('', null, selectedDayRef.current));
-  }, []);
+  const handleSearch = useCallback((query: string, category: string | null) => search(query, category), [search]);
 
-  // Record changes answer with today's list, so reload the view the user is looking at.
+  const handleClearSearch = useCallback(() => search('', null), [search]);
+
+  // 기록 변경 API 는 오늘 목록을 반환 → 보고 있던 화면을 다시 로드
   const reloadView = async () => {
     setInbox(await getInbox(inbox?.query ?? '', inbox?.category ?? null, selectedDayRef.current));
     onRecordsChanged();
@@ -40,5 +45,11 @@ export function useInboxHandlers(
     setToast('선택한 기록의 분류를 변경했습니다.');
   };
 
-  return { handleSearch, handleClearSearch, handleDelete, handleRestore, handleReclassify };
+  const handleAddRule = async (eventId: number) => {
+    const result = await addRuleForEvent(eventId);
+    await reloadView();
+    setToast(result.error || result.message);
+  };
+
+  return { handleSearch, handleClearSearch, handleDelete, handleRestore, handleReclassify, handleAddRule };
 }

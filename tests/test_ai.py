@@ -279,8 +279,9 @@ class TestAiCoaching:
 
         assert first["headline"] == "집중 좋아요"
         assert first["error"] == ""
-        assert second == first
-        assert fake.call_count == 2  # initial + refresh; the middle call hit the cache
+        assert (first["reused"], second["reused"]) == (False, True)
+        assert second["headline"] == first["headline"]
+        assert fake.call_count == 2  # 최초 + 새로 고침. 가운데 호출은 캐시 사용
         assert "secret-project" not in fake.call_args.kwargs["user"]
         assert "code.exe" in fake.call_args.kwargs["user"]
 

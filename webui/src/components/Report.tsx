@@ -1,14 +1,17 @@
 import { useState } from 'react';
+import AskCard from './AskCard';
+import Heatmap from './charts/Heatmap';
+import TrendChart from './charts/TrendChart';
+import { formatDuration, shortDate } from '../time';
 import type { ReportData } from '../types';
 
 const DAILY_PAGE_SIZE = 10;
 
-function formatHm(seconds: number): string {
-  const totalMinutes = Math.round(seconds / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}분`;
-  return minutes === 0 ? `${hours}시간` : `${hours}시간 ${minutes}분`;
+/** 이 PC 시간대 기준 날짜 (toISOString 은 UTC 날짜를 반환). */
+function localDate(offsetDays: number): string {
+  const day = new Date();
+  day.setDate(day.getDate() + offsetDays);
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 }
 
 function ScoreRing({ pct }: { pct: number }) {
@@ -30,46 +33,20 @@ function ScoreRing({ pct }: { pct: number }) {
   );
 }
 
-function TrendChart({ trend }: { trend: ReportData['trend'] }) {
-  if (trend.length < 2) {
-    return <div className="tm-empty-row">추세를 그리려면 2일 이상의 기록이 필요합니다.</div>;
-  }
-  const w = 360;
-  const h = 94;
-  const left = 11;
-  const right = 349;
-  const top = 16;
-  const bottom = 84;
-  const points = trend.map((point, i) => {
-    const x = left + (i / (trend.length - 1)) * (right - left);
-    const y = bottom - (point.score / 100) * (bottom - top);
-    return [x, y] as const;
-  });
-  const line = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  const area = `${left},${bottom} ${line} ${right},${bottom}`;
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: '100%', height: 120, display: 'block' }}>
-      <polyline points={area} fill="rgba(186,106,73,0.1)" stroke="none" />
-      <polyline points={line} fill="none" stroke="#BA6A49" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      {points.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="2.8" fill="#FCFBF8" stroke="#BA6A49" strokeWidth="2" />
-      ))}
-    </svg>
-  );
-}
-
 interface ReportProps {
   data: ReportData;
   onChangePeriod: (period: string) => void;
   onChangeRange: (startIso: string, endIso: string) => void;
   onExportCsv: () => void;
+  external: boolean;
 }
 
-export default function Report({ data, onChangePeriod, onChangeRange, onExportCsv }: ReportProps) {
-  const today = new Date().toISOString().slice(0, 10);
+export default function Report({ data, onChangePeriod, onChangeRange, onExportCsv, external }: ReportProps) {
+  const today = localDate(0);
   const [dailyPageByPeriod, setDailyPageByPeriod] = useState<Record<string, number>>({});
-  const [rangeStart, setRangeStart] = useState(today);
+  const [rangeStart, setRangeStart] = useState(() => localDate(-6));
   const [rangeEnd, setRangeEnd] = useState(today);
+  const rangeValid = !!rangeStart && !!rangeEnd && rangeStart <= rangeEnd;
   const totalPages = Math.max(1, Math.ceil(data.daily.length / DAILY_PAGE_SIZE));
   const dailyPage = Math.min(dailyPageByPeriod[data.period] ?? 0, totalPages - 1);
   const pageRows = data.daily.slice(dailyPage * DAILY_PAGE_SIZE, dailyPage * DAILY_PAGE_SIZE + DAILY_PAGE_SIZE);
@@ -82,6 +59,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
 
   return (
     <div className="tm-page">
+      <AskCard external={external} />
       {data.error && <div className="tm-rule-error">{data.error}</div>}
       <div className="tm-period-row">
         <div className="tm-period-chips">
@@ -96,8 +74,9 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="tm-range-controls">
           <input
+            aria-label="시작 날짜"
             type="date"
             className="tm-select"
             style={{ fontSize: 12, height: 28, padding: '0 6px' }}
@@ -105,8 +84,9 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
             max={today}
             onChange={(e) => setRangeStart(e.target.value)}
           />
-          <span style={{ fontSize: 12, color: '#B6AFA2' }}>–</span>
+          <span style={{ fontSize: 12, color: 'var(--tm-muted)' }}>–</span>
           <input
+            aria-label="끝 날짜"
             type="date"
             className="tm-select"
             style={{ fontSize: 12, height: 28, padding: '0 6px' }}
@@ -118,6 +98,8 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
             className="tm-btn-small tm-btn-primary"
             type="button"
             onClick={() => onChangeRange(rangeStart, rangeEnd)}
+            disabled={!rangeValid}
+            title={rangeValid ? undefined : '시작 날짜는 끝 날짜보다 늦을 수 없어요.'}
           >
             조회
           </button>
@@ -156,12 +138,12 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
 
         <div className="tm-card">
           <div className="tm-card-title" style={{ marginBottom: 8 }}>
-            요일 패턴
+            요일별 생산 시간 (합계)
           </div>
           <div className="tm-weekday-chart">
             {data.weekdayBars.map((bar) => (
               <div className="tm-weekday-col" key={bar.day}>
-                <span className="tm-weekday-time">{formatHm(bar.seconds)}</span>
+                <span className="tm-weekday-time">{formatDuration(bar.seconds)}</span>
                 <div className="tm-weekday-bar-track">
                   <div
                     className="tm-weekday-bar"
@@ -181,35 +163,14 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
           <div className="tm-card-title" style={{ marginBottom: 6 }}>
             생산성 추세
           </div>
-          <div style={{ fontSize: 11, color: '#A79F92', marginBottom: 4 }}>생산성 점수 추이</div>
-          <TrendChart trend={data.trend} />
+          <TrendChart key={`${data.startIso}~${data.endIso}`} trend={data.trend} />
         </div>
 
         <div className="tm-card">
           <div className="tm-card-title" style={{ marginBottom: 12 }}>
             요일 · 시간 히트맵
           </div>
-          {data.heatmap.map((row) => (
-            <div className="tm-heatmap-row" key={row.day}>
-              <span className="tm-heatmap-day-label">{row.day}</span>
-              <div className="tm-heatmap-cells">
-                {row.cells.map((intensity, i) => (
-                  <div
-                    key={i}
-                    className="tm-heatmap-cell"
-                    style={{ background: intensity < 0.07 ? 'var(--tm-cell-empty)' : `rgba(186,106,73,${0.16 + intensity * 0.66})` }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="tm-heatmap-axis">
-            <span>00시</span>
-            <span>06시</span>
-            <span>12시</span>
-            <span>18시</span>
-            <span>24시</span>
-          </div>
+          <Heatmap key={`${data.startIso}~${data.endIso}`} rows={data.heatmap} />
         </div>
       </div>
 
@@ -227,9 +188,9 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
           {data.daily.length === 0 && <div className="tm-empty-row">기록된 데이터가 없습니다.</div>}
           {pageRows.map((row) => (
             <div className="tm-daily-table-row" key={row.day}>
-              <span style={{ fontWeight: 700, color: 'var(--tm-ink)' }}>{row.day}</span>
+              <span style={{ fontWeight: 700, color: 'var(--tm-ink)' }}>{shortDate(row.day)}</span>
               <span style={{ color: 'var(--tm-ink-3)' }}>{row.total}</span>
-              <span style={{ fontWeight: 700, color: '#6F9A7C' }}>{row.prod}</span>
+              <span style={{ fontWeight: 700, color: 'var(--tm-ok)' }}>{row.prod}</span>
               <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: 'var(--tm-ink)' }}>{row.score}</span>
             </div>
           ))}
@@ -243,7 +204,7 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
               >
                 ‹ 이전
               </button>
-              <span style={{ fontSize: 11, color: '#A79F92' }}>
+              <span style={{ fontSize: 11, color: 'var(--tm-muted)' }}>
                 {dailyPage + 1} / {totalPages}
               </span>
               <button

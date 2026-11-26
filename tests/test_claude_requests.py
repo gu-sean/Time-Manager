@@ -1,4 +1,4 @@
-"""Claude goes through the official SDK; these check the request without any network."""
+"""Claude 는 공식 SDK 사용: 네트워크 없이 요청 내용 검증."""
 import json
 from collections.abc import Callable
 

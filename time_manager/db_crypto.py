@@ -1,14 +1,16 @@
-"""Encrypt-at-rest for the SQLite database using Fernet (AES-128-CBC + HMAC-SHA256).
+"""SQLite DB 저장 암호화: Fernet (AES-128-CBC + HMAC-SHA256).
 
-Key lifecycle:
-  - First run: Fernet.generate_key() produces a random 32-byte key.
-  - The key is stored in Windows Credential Manager via the `keyring` library.
-  - Fallback: derive a stable key from machine+user with PBKDF2 when keyring fails.
+키 관리:
 
-Trade-off:
-  The database file is decrypted on disk while the app is running. This protects data
-  at rest (device theft, offline file access). True page-level encryption requires
-  SQLCipher (https://www.zetetic.net/sqlcipher/), which needs a native build pipeline.
+- 최초 실행: Fernet.generate_key() 로 무작위 32바이트 키 생성
+- `keyring` 라이브러리로 Windows 자격 증명 관리자에 저장
+- keyring 실패 시: PC 이름·사용자 이름에서 PBKDF2 로 고정 키 유도
+
+한계:
+
+- 앱 실행 중에는 DB 파일이 복호화된 상태로 디스크에 있음
+- 보호 범위는 저장 상태의 데이터 (기기 도난, 오프라인 파일 접근)
+- 진짜 페이지 단위 암호화는 SQLCipher (https://www.zetetic.net/sqlcipher/) 필요: 네이티브 빌드 과정이 필요함
 """
 from __future__ import annotations
 
@@ -18,7 +20,11 @@ import hashlib
 import logging
 import os
 import platform
+from datetime import datetime
 from pathlib import Path
+
+from time_manager import notices
+from time_manager.fileio import atomic_write_bytes
 
 _log = logging.getLogger(__name__)
 
@@ -29,7 +35,7 @@ _SQLITE_HEADER = b"SQLite format 3\x00"
 
 
 def _looks_like_sqlite(path: Path) -> bool:
-    """Check the SQLite file-header magic bytes without opening a DB connection."""
+    """DB 를 열지 않고 SQLite 파일 헤더(매직 바이트) 확인."""
     try:
         with path.open("rb") as fh:
             return fh.read(len(_SQLITE_HEADER)) == _SQLITE_HEADER
@@ -38,7 +44,7 @@ def _looks_like_sqlite(path: Path) -> bool:
 
 
 def _get_or_create_key() -> bytes:
-    """Return a Fernet key (44-byte URL-safe base64), persisting it in keyring if absent."""
+    """Fernet 키(URL-safe base64 44바이트) 반환. keyring 에 없으면 저장."""
     try:
         import keyring  # type: ignore[import-untyped]
         stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_USER)
@@ -61,9 +67,9 @@ def _machine_derived_key() -> bytes:
 
 
 def decrypt_if_needed(db_path: Path) -> bool:
-    """Decrypt ``db_path.enc`` → ``db_path`` if the encrypted file exists but the plain one does not.
+    """평문 파일이 없고 암호화 파일만 있으면 ``db_path.enc`` → ``db_path`` 복호화.
 
-    Returns True when decryption was performed.
+    - 복호화했으면 True
     """
     try:
         from cryptography.fernet import Fernet
@@ -76,7 +82,7 @@ def decrypt_if_needed(db_path: Path) -> bool:
         return False
     if db_path.exists():
         if _looks_like_sqlite(db_path):
-            # Plain file already present (possible crash before last encrypt); prefer it.
+            # 평문 파일이 있으면 그것을 사용 (직전 암호화 전에 비정상 종료한 경우)
             _log.info("Plain DB exists alongside %s — skipping decrypt", enc_path.name)
             return False
         _log.warning(
@@ -90,14 +96,31 @@ def decrypt_if_needed(db_path: Path) -> bool:
         _log.info("DB decrypted: %s → %s", enc_path.name, db_path.name)
         return True
     except Exception as exc:
-        _log.error("DB decryption failed (%s) — app will open without prior data", exc)
+        _log.error("DB decryption failed (%s) — app will open without prior data", type(exc).__name__)
+        _set_aside_unreadable(enc_path)
         return False
 
 
-def encrypt_and_replace(db_path: Path) -> bool:
-    """Encrypt ``db_path`` → ``db_path.enc`` then securely erase the plaintext file.
+def _set_aside_unreadable(enc_path: Path) -> None:
+    """빈 상태로 시작하기 전에 암호화된 기록을 다른 이름으로 옮김.
 
-    Also removes SQLite WAL/SHM sidecars.  Returns True on success.
+    - 종료 시 (빈) DB 가 ``enc_path`` 에 암호화되므로, 그대로 두면 기존 기록이 파괴됨
+    - 키를 일시적으로 못 읽은 것일 수 있어 파일은 보관
+    - 옮기지 못하면 예외 발생 → 앱 시작 중단
+    """
+    kept = enc_path.with_name(f"{enc_path.name}.unreadable-{datetime.now():%Y%m%d-%H%M%S-%f}")
+    os.replace(enc_path, kept)
+    notices.add(
+        "이전 활동 기록의 암호를 풀지 못해 새 기록으로 시작했어요. 기존 기록은 삭제하지 않고 "
+        f"'{kept}' 파일로 보관했습니다."
+    )
+
+
+def encrypt_and_replace(db_path: Path) -> bool:
+    """``db_path`` → ``db_path.enc`` 암호화 후 평문 파일을 안전 삭제.
+
+    - SQLite WAL/SHM 보조 파일도 제거
+    - 성공하면 True
     """
     try:
         from cryptography.fernet import Fernet
@@ -112,8 +135,8 @@ def encrypt_and_replace(db_path: Path) -> bool:
         key = _get_or_create_key()
         original = db_path.read_bytes()
         ciphertext = Fernet(key).encrypt(original)
-        enc_path.write_bytes(ciphertext)
-        # Remove WAL/SHM sidecars first (they reference the main file).
+        atomic_write_bytes(enc_path, ciphertext)  # 쓰기에 실패해도 이전 사본은 유지
+        # WAL/SHM 을 먼저 제거 (본 파일을 참조함)
         for sidecar_suffix in ("-wal", "-shm"):
             sidecar = Path(str(db_path) + sidecar_suffix)
             try:
@@ -129,14 +152,11 @@ def encrypt_and_replace(db_path: Path) -> bool:
 
 
 def _zero_and_delete(path: Path, original: bytes) -> None:
-    """Overwrite with zeros then delete — basic protection against trivial file recovery.
+    """0 으로 덮어쓴 뒤 삭제 (단순한 파일 복구 시도를 막는 수준).
 
-    ``enc_path`` already holds a valid encrypted copy of ``original`` by the time this
-    runs. If a concurrent process (AV scanner, indexer) holds a transient lock on
-    ``path`` and the final unlink fails after we've already zeroed it, restore
-    ``original`` instead of leaving a zeroed, unreadable file behind — the file is
-    still redundant with the .enc backup, so leaving it as plaintext this one time is
-    safer than corrupting it.
+    - 실행 시점에 ``enc_path`` 에는 ``original`` 의 암호화 사본이 이미 있음
+    - 백신·인덱서가 잠가 삭제에 실패하면 ``original`` 을 되돌림
+    - 0 으로 채워진 못 읽는 파일을 남기는 것보다 이번 한 번 평문으로 두는 편이 안전
     """
     try:
         size = path.stat().st_size

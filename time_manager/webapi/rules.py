@@ -6,6 +6,7 @@ from typing import Any
 from time_manager.formatting import _format_seconds, _truncate
 from time_manager.models import Category
 from time_manager.rules import (
+    BROWSER_APPS,
     RuleConflictError,
     load_rules,
     remove_rule_value,
@@ -18,11 +19,6 @@ from time_manager.storage import BreakdownRow
 from ._shared import WebApiBase
 
 _MIN_SUGGESTION_SECONDS = 60
-# When the URL could not be read, activity falls back to the browser itself.
-# A rule for it would classify all browsing at once, so it is never suggested.
-_BROWSERS = frozenset(
-    f"{name}.exe" for name in ("chrome", "msedge", "firefox", "whale", "brave", "opera", "vivaldi", "iexplore")
-)
 
 
 class RulesMixin(WebApiBase):
@@ -95,7 +91,7 @@ class RulesMixin(WebApiBase):
         ]
 
     def _unclassified_targets(self, days: int, limit: int) -> list[BreakdownRow]:
-        """Apps and domains with no rule yet. Shared by the list and its recommendations."""
+        """아직 규칙이 없는 앱·도메인. 목록과 맞춤 추천이 함께 사용."""
         end_day = date.today()
         start_day = end_day - timedelta(days=max(1, int(days)) - 1)
         known = {value.lower() for values in load_rules(self.rules_path).values() for value in values}
@@ -104,8 +100,27 @@ class RulesMixin(WebApiBase):
             for row in self.store.app_domain_totals(start_day, end_day, unmatched_only=True)
             if row.seconds >= _MIN_SUGGESTION_SECONDS
             and row.label.lower() not in known
-            and row.label.lower() not in _BROWSERS
+            and row.label.lower() not in BROWSER_APPS
+            and row.label.lower() not in self.settings.dismissed_suggestions
         ][: max(1, int(limit))]
+
+    def get_dismissed_suggestions(self) -> list[str]:
+        return list(self.settings.dismissed_suggestions)
+
+    def dismiss_rule_suggestion(self, target: str) -> list[str]:
+        """추천을 계속 숨김 (예: 중립으로 두고 싶은 항목)."""
+        name = str(target or "").strip().lower()
+        if name and name not in self.settings.dismissed_suggestions:
+            self.settings.dismissed_suggestions.append(name)
+            self.settings_store.save(self.settings)
+        return self.get_dismissed_suggestions()
+
+    def restore_rule_suggestion(self, target: str) -> list[str]:
+        name = str(target or "").strip().lower()
+        if name in self.settings.dismissed_suggestions:
+            self.settings.dismissed_suggestions.remove(name)
+            self.settings_store.save(self.settings)
+        return self.get_dismissed_suggestions()
 
     def apply_rule_suggestion(self, target: str, category: str) -> dict[str, Any]:
         try:

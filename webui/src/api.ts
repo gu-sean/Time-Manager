@@ -1,4 +1,4 @@
-import type { AICoaching, AIModelList, AIRequestPreview, AIService, AIRuleSuggestionsResult, AISettingsInput, AITestResult, CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, UpdateInfo } from './types';
+import type { PresetItem, AICoaching, AIModelList, AIRequestPreview, AskResult, CoachingHistoryEntry, AIService, AIRuleSuggestionsResult, AISettingsInput, AITestResult, CurrentActivity, DashboardData, InboxData, InstallUpdateResult, ReportData, ReviewData, RuleSuggestion, RulesData, SettingsData, UpdateInfo } from './types';
 
 declare global {
   interface Window {
@@ -11,7 +11,7 @@ declare global {
         send_focus_notification(title: string, body: string): Promise<void>;
         get_inbox(query?: string, category?: string | null, dateIso?: string | null): Promise<InboxData>;
         reclassify_event(eventId: number, category: string): Promise<InboxData>;
-        save_event_as_rule(eventId: number, label: string, category: string): Promise<InboxData>;
+        add_rule_for_event(eventId: number): Promise<{ message: string; error: string }>;
         delete_event(eventId: number): Promise<InboxData>;
         restore_deleted_event(): Promise<InboxData>;
         get_review(dateIso?: string | null): Promise<ReviewData>;
@@ -25,12 +25,14 @@ declare global {
         get_report_range(startIso: string, endIso: string): Promise<ReportData>;
         get_settings(): Promise<SettingsData>;
         save_settings(payload: Record<string, unknown>): Promise<SettingsData>;
-        toggle_exclude_self(enabled: boolean): Promise<SettingsData>;
         toggle_auto_backup(enabled: boolean): Promise<SettingsData>;
         toggle_startup(enabled: boolean): Promise<SettingsData>;
         set_theme(theme: 'light' | 'dark'): Promise<SettingsData>;
         set_profile(profile: string): Promise<SettingsData>;
         apply_preset(): Promise<SettingsData>;
+        create_preset(name: string, emoji: string, source: string): Promise<SettingsData>;
+        update_preset(id: string, name: string, emoji: string, items: PresetItem[]): Promise<SettingsData>;
+        delete_preset(id: string): Promise<SettingsData>;
         run_diagnostics(): Promise<SettingsData>;
         export_csv(dayIso?: string | null): Promise<{ message: string }>;
         export_csv_period(period: string): Promise<{ message: string }>;
@@ -49,7 +51,18 @@ declare global {
         get_ai_coaching(
           scope: string, dateIso: string | null, refresh: boolean, requestId: string, builtin: boolean,
         ): Promise<AICoaching>;
-        preview_ai_request(kind: string, scope: string, dateIso: string | null): Promise<AIRequestPreview>;
+        preview_ai_request(
+          kind: string, scope: string, dateIso: string | null, question: string,
+        ): Promise<AIRequestPreview>;
+        ask_activity(question: string, requestId: string, builtin: boolean): Promise<AskResult>;
+        get_coaching_history(): Promise<CoachingHistoryEntry[]>;
+        delete_coaching_history(id: number): Promise<CoachingHistoryEntry[]>;
+        clear_coaching_history(): Promise<CoachingHistoryEntry[]>;
+        add_ai_exclusion(value: string): Promise<SettingsData>;
+        remove_ai_exclusion(value: string): Promise<SettingsData>;
+        get_dismissed_suggestions(): Promise<string[]>;
+        dismiss_rule_suggestion(target: string): Promise<string[]>;
+        restore_rule_suggestion(target: string): Promise<string[]>;
         cancel_ai_request(requestId: string): Promise<void>;
       };
     };
@@ -70,9 +83,9 @@ let mockDashboard: DashboardData = {
   donut: {
     total: '6h 15m',
     segments: [
-      { category: 'productive', label: '생산적', color: '#7FA98A', pct: 68, time: '4h 20m', ratio: 0.68 },
-      { category: 'unproductive', label: '비생산적', color: '#DB9163', pct: 20, time: '1h 15m', ratio: 0.2 },
-      { category: 'neutral', label: '중립', color: '#99ABBE', pct: 12, time: '40m', ratio: 0.12 },
+      { category: 'productive', label: '생산적', color: '#128C6E', pct: 68, time: '4h 20m', ratio: 0.68 },
+      { category: 'unproductive', label: '비생산적', color: '#D58528', pct: 20, time: '1h 15m', ratio: 0.2 },
+      { category: 'neutral', label: '중립', color: '#7A82D6', pct: 12, time: '40m', ratio: 0.12 },
     ],
   },
   hourly: Array.from({ length: 24 }, (_, hour) => ({
@@ -89,7 +102,7 @@ let mockDashboard: DashboardData = {
     { rank: 5, label: 'Discord', time: '20m', category: 'unproductive', ratio: 0.15 },
   ],
   focusSummary: { count: 2, totalTime: '1시간 40분' },
-  currentActivity: { label: 'App.tsx - time-manager - Visual Studio Code', category: 'productive', categoryLabel: '생산적', color: '#7FA98A' },
+  currentActivity: { label: 'App.tsx - time-manager - Visual Studio Code', category: 'productive', categoryLabel: '생산적', color: '#128C6E' },
 };
 
 let mockInbox: InboxData = {
@@ -105,8 +118,10 @@ let mockInbox: InboxData = {
   category: null,
 };
 
+/** 백엔드 없는 개발 서버(예시 데이터 표시)에서만 false. */
 function hasPywebview(): boolean {
-  return typeof window !== 'undefined' && !!window.pywebview;
+  // 빌드된 앱은 가짜 데이터를 보여주면 안 됨 → 항상 백엔드 호출 (또는 실패)
+  return !import.meta.env.DEV || !!window.pywebview?.api;
 }
 
 export async function getDashboard(dateIso?: string): Promise<DashboardData> {
@@ -157,9 +172,9 @@ export async function reclassifyEvent(eventId: number, category: string): Promis
   return mockInbox;
 }
 
-export async function saveEventAsRule(eventId: number, label: string, category: string): Promise<InboxData> {
-  if (hasPywebview()) return window.pywebview!.api.save_event_as_rule(eventId, label, category);
-  return reclassifyEvent(eventId, category);
+export async function addRuleForEvent(eventId: number): Promise<{ message: string; error: string }> {
+  if (hasPywebview()) return window.pywebview!.api.add_rule_for_event(eventId);
+  return { message: '규칙을 추가했어요. (예시)', error: '' };
 }
 
 export async function deleteEvent(eventId: number): Promise<InboxData> {
@@ -177,15 +192,15 @@ const MOCK_REVIEW: ReviewData = {
   composition: {
     total: '6h 15m',
     segments: [
-      { category: 'productive', label: '생산적', color: '#7FA98A', pct: 68, time: '4h 20m' },
-      { category: 'unproductive', label: '비생산적', color: '#DB9163', pct: 20, time: '1h 15m' },
-      { category: 'neutral', label: '중립', color: '#99ABBE', pct: 12, time: '40m' },
+      { category: 'productive', label: '생산적', color: '#128C6E', pct: 68, time: '4h 20m' },
+      { category: 'unproductive', label: '비생산적', color: '#D58528', pct: 20, time: '1h 15m' },
+      { category: 'neutral', label: '중립', color: '#7A82D6', pct: 12, time: '40m' },
     ],
   },
   highlights: [
-    { tag: '생산', tBg: '#EAF1EC', tFg: '#6F9A7C', title: '가장 많이 쓴 생산 활동', value: 'Visual Studio Code', time: '2h 15m', color: '#7FA98A', empty: false },
-    { tag: '주의', tBg: '#F8EDE3', tFg: '#CB8056', title: '가장 큰 방해 요소', value: 'YouTube', time: '45m', color: '#DB9163', empty: false },
-    { tag: '정리', tBg: '#EBF0F4', tFg: '#7E97AC', title: '정리가 필요한 중립 활동', value: '미분류 4건', time: '', color: '#99ABBE', empty: false },
+    { tag: '생산', tBg: '#EAF1EC', tFg: '#6F9A7C', title: '가장 많이 쓴 생산 활동', value: 'Visual Studio Code', time: '2h 15m', color: '#128C6E', empty: false },
+    { tag: '주의', tBg: '#F8EDE3', tFg: '#CB8056', title: '가장 큰 방해 요소', value: 'YouTube', time: '45m', color: '#D58528', empty: false },
+    { tag: '정리', tBg: '#EBF0F4', tFg: '#7E97AC', title: '정리가 필요한 중립 활동', value: '미분류 4건', time: '', color: '#7A82D6', empty: false },
   ],
   suggestion: '오후 집중 패턴 — 14~16시 생산성이 가장 높아요. 이 시간대의 활동 패턴을 유지해보세요.',
   flow: {
@@ -320,10 +335,11 @@ const MOCK_REPORT: ReportData = {
   ],
   insightMain: '평균 생산 점수는 76%입니다. 가장 약한 날이 5/18(52%)이고, 비생산 피크는 21시입니다.',
   insightSub: '이번 주는 금요일 오후에 생산성이 가장 높았어요.',
-  trend: [62, 70, 66, 78, 74, 82, 80, 88, 84, 90, 86, 82].map((score, i) => ({ day: String(i + 1), score })),
+  trend: [62, 70, 66, 78, 74, 82, 80, 88, 84, 90, 86, 82].map((score, i) => ({ date: `2026-05-${String(i + 9).padStart(2, '0')}`, score })),
   heatmap: ['월', '화', '수', '목', '금', '토', '일'].map((day, di) => ({
     day,
     cells: Array.from({ length: 24 }, (_, hi) => Math.max(0, Math.sin((hi + 2) / 13 * Math.PI) * (di < 5 ? 1 : 0.4))),
+    seconds: Array.from({ length: 24 }, (_, hi) => Math.round(Math.max(0, Math.sin((hi + 2) / 13 * Math.PI) * (di < 5 ? 1 : 0.4)) * 3600)),
   })),
   daily: [
     { day: '5/20 (월)', total: '6h 15m', prod: '4h 20m', score: 82 },
@@ -331,9 +347,9 @@ const MOCK_REPORT: ReportData = {
     { day: '5/18 (토)', total: '2h 55m', prod: '1h 20m', score: 52 },
   ],
   topActivities: [
-    { name: 'Visual Studio Code', time: '14h 20m', ratio: 1, color: '#7FA98A' },
-    { name: 'Chrome', time: '9h 05m', ratio: 0.64, color: '#7FA98A' },
-    { name: 'YouTube', time: '4h 15m', ratio: 0.3, color: '#DB9163' },
+    { name: 'Visual Studio Code', time: '14h 20m', ratio: 1, color: '#128C6E' },
+    { name: 'Chrome', time: '9h 05m', ratio: 0.64, color: '#128C6E' },
+    { name: 'YouTube', time: '4h 15m', ratio: 0.3, color: '#D58528' },
   ],
 };
 
@@ -362,7 +378,7 @@ function updateMockService(service: string, changes: Partial<AIService>): void {
 }
 
 let mockSettings: SettingsData = {
-  appVersion: '1.1.0',
+  appVersion: '1.2.0',
   dailyGoalMinutes: 180,
   weeklyGoalMinutes: 900,
   unproductiveLimitMinutes: 120,
@@ -370,13 +386,12 @@ let mockSettings: SettingsData = {
   workEndHour: 18,
   profile: '',
   profileOptions: [
-    { value: '', label: '선택 안 함' },
-    { value: 'developer', label: '개발자' },
-    { value: 'student', label: '학생' },
-    { value: 'designer', label: '디자이너' },
+    { value: '', label: '선택 안 함', emoji: '', custom: false },
+    { value: 'developer', label: '개발자', emoji: '💻', custom: false },
+    { value: 'student', label: '학생', emoji: '📚', custom: false },
+    { value: 'designer', label: '디자이너', emoji: '🎨', custom: false },
   ],
   presetItems: [],
-  excludeSelf: true,
   notificationsEnabled: true,
   autoBackupEnabled: true,
   startupEnabled: false,
@@ -393,6 +408,7 @@ let mockSettings: SettingsData = {
     { value: 'model', label: '개인 모델 (Claude · GPT · Ollama 등)' },
   ],
   aiService: 'claude',
+  aiExcludedTargets: [],
   aiServices: [
     mockService('claude', 'Claude (Anthropic)', { keyRequired: true, model: 'claude-opus-5-5', baseUrl: 'https://api.anthropic.com' }),
     mockService('openai', 'GPT (OpenAI)', { keyRequired: true, baseUrl: 'https://api.openai.com/v1' }),
@@ -408,12 +424,6 @@ export async function getSettings(): Promise<SettingsData> {
 export async function saveSettings(payload: Record<string, unknown>): Promise<SettingsData> {
   if (hasPywebview()) return window.pywebview!.api.save_settings(payload);
   mockSettings = { ...mockSettings, ...payload };
-  return mockSettings;
-}
-
-export async function toggleExcludeSelf(enabled: boolean): Promise<SettingsData> {
-  if (hasPywebview()) return window.pywebview!.api.toggle_exclude_self(enabled);
-  mockSettings = { ...mockSettings, excludeSelf: enabled };
   return mockSettings;
 }
 
@@ -491,18 +501,29 @@ export async function exportLogs(): Promise<{ message: string }> {
   return { message: '' };
 }
 
+const DEV_FALLBACK_MS = 2000;
+const API_TIMEOUT_MS = 15000;
+
+/** 앱 백엔드를 호출할 수 있게 되면 완료. */
 export function waitForApi(): Promise<void> {
-  return new Promise((resolve) => {
-    if (hasPywebview()) {
+  const ready = () => typeof window.pywebview?.api?.get_dashboard === 'function';
+  return new Promise((resolve, reject) => {
+    if (ready()) {
       resolve();
       return;
     }
-    const onReady = () => {
-      window.removeEventListener('pywebviewready', onReady);
-      resolve();
-    };
-    window.addEventListener('pywebviewready', onReady);
-    setTimeout(resolve, 2000);
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const waited = Date.now() - started;
+      // 백엔드 없이 진행(예시 데이터)할 수 있는 것은 브라우저 개발 서버뿐
+      if (ready() || (import.meta.env.DEV && waited > DEV_FALLBACK_MS)) {
+        window.clearInterval(timer);
+        resolve();
+      } else if (waited > API_TIMEOUT_MS) {
+        window.clearInterval(timer);
+        reject(new Error('the app backend did not become ready'));
+      }
+    }, 50);
   });
 }
 
@@ -541,15 +562,107 @@ export async function testAiConnection(): Promise<AITestResult> {
 }
 
 export async function previewAiRequest(
-  kind: 'suggestions' | 'coaching',
+  kind: 'suggestions' | 'coaching' | 'question',
   scope: 'day' | 'week' = 'day',
   dateIso: string | null = null,
+  question = '',
 ): Promise<AIRequestPreview> {
-  if (hasPywebview()) return window.pywebview!.api.preview_ai_request(kind, scope, dateIso);
+  if (hasPywebview()) return window.pywebview!.api.preview_ai_request(kind, scope, dateIso, question);
   return {
     serviceLabel: 'Ollama', url: 'http://localhost:11434/v1/chat/completions', model: 'example-model',
     instructions: '(예시 지침)', data: JSON.stringify({ targets: ['notion.exe', 'reddit.com'] }, null, 2), error: '',
   };
+}
+
+export async function askActivity(question: string, requestId: string, builtin: boolean): Promise<AskResult> {
+  if (hasPywebview()) return window.pywebview!.api.ask_activity(question, requestId, builtin);
+  return {
+    answer: '사용 시간은 모두 1시간 20분이에요.', interpretation: '기간 (예시) · 분류 전체 · 대상 전체',
+    rows: [], note: '', source: '내장 분석', error: '', canFallback: false,
+  };
+}
+
+let mockHistory: CoachingHistoryEntry[] = [];
+
+export async function getCoachingHistory(): Promise<CoachingHistoryEntry[]> {
+  if (hasPywebview()) return window.pywebview!.api.get_coaching_history();
+  return mockHistory;
+}
+
+export async function deleteCoachingHistory(id: number): Promise<CoachingHistoryEntry[]> {
+  if (hasPywebview()) return window.pywebview!.api.delete_coaching_history(id);
+  mockHistory = mockHistory.filter((entry) => entry.id !== id);
+  return mockHistory;
+}
+
+export async function clearCoachingHistory(): Promise<CoachingHistoryEntry[]> {
+  if (hasPywebview()) return window.pywebview!.api.clear_coaching_history();
+  mockHistory = [];
+  return mockHistory;
+}
+
+export async function addAiExclusion(value: string): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.add_ai_exclusion(value);
+  mockSettings = { ...mockSettings, aiExcludedTargets: [...new Set([...mockSettings.aiExcludedTargets, value.trim()])] };
+  return mockSettings;
+}
+
+export async function removeAiExclusion(value: string): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.remove_ai_exclusion(value);
+  mockSettings = { ...mockSettings, aiExcludedTargets: mockSettings.aiExcludedTargets.filter((v) => v !== value) };
+  return mockSettings;
+}
+
+let mockDismissed: string[] = [];
+
+export async function getDismissedSuggestions(): Promise<string[]> {
+  if (hasPywebview()) return window.pywebview!.api.get_dismissed_suggestions();
+  return mockDismissed;
+}
+
+export async function dismissRuleSuggestion(target: string): Promise<string[]> {
+  if (hasPywebview()) return window.pywebview!.api.dismiss_rule_suggestion(target);
+  mockDismissed = [...new Set([...mockDismissed, target.toLowerCase()])];
+  return mockDismissed;
+}
+
+export async function restoreRuleSuggestion(target: string): Promise<string[]> {
+  if (hasPywebview()) return window.pywebview!.api.restore_rule_suggestion(target);
+  mockDismissed = mockDismissed.filter((name) => name !== target);
+  return mockDismissed;
+}
+
+export async function createPreset(name: string, emoji: string, source: string): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.create_preset(name, emoji, source);
+  const value = `custom:${Date.now()}`;
+  mockSettings = {
+    ...mockSettings,
+    profile: value,
+    presetItems: [],
+    profileOptions: [...mockSettings.profileOptions, { value, label: name, emoji: emoji || '🧩', custom: true }],
+  };
+  return mockSettings;
+}
+
+export async function updatePreset(id: string, name: string, emoji: string, items: PresetItem[]): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.update_preset(id, name, emoji, items);
+  mockSettings = {
+    ...mockSettings,
+    presetItems: items,
+    profileOptions: mockSettings.profileOptions.map((o) => (o.value === id ? { ...o, label: name, emoji } : o)),
+  };
+  return mockSettings;
+}
+
+export async function deletePreset(id: string): Promise<SettingsData> {
+  if (hasPywebview()) return window.pywebview!.api.delete_preset(id);
+  mockSettings = {
+    ...mockSettings,
+    profile: '',
+    presetItems: [],
+    profileOptions: mockSettings.profileOptions.filter((o) => o.value !== id),
+  };
+  return mockSettings;
 }
 
 export async function cancelAiRequest(requestId: string): Promise<void> {
@@ -564,6 +677,7 @@ export async function getAiRuleSuggestions(requestId: string, builtin: boolean):
       { target: 'reddit.com', displayTarget: 'reddit.com', timeLabel: '35분', category: 'unproductive', categoryLabel: '비생산적', reason: '소셜 피드 사이트' },
     ],
     skipped: 1,
+    excluded: 0,
     source: '내장 분석',
     error: '',
     canFallback: false,

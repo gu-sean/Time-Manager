@@ -5,6 +5,7 @@ interface HeaderProps {
   viewingToday: boolean;
   notificationsEnabled: boolean;
   theme: 'light' | 'dark';
+  showDate: boolean;
   onPrevDay: () => void;
   onNextDay: () => void;
   onToday: () => void;
@@ -19,6 +20,7 @@ export default function Header({
   viewingToday,
   notificationsEnabled,
   theme,
+  showDate,
   onPrevDay,
   onNextDay,
   onToday,
@@ -52,18 +54,33 @@ export default function Header({
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
         </div>
-        <div className="tm-date-pill">
-          <button className="tm-date-pill-btn" type="button" onClick={onPrevDay}>
-            ‹
-          </button>
-          <button className="tm-date-pill-label" type="button" onClick={onToday}>
-            <span>📅</span>
-            <span>{dateLabel}</span>
-          </button>
-          <button className="tm-date-pill-btn" type="button" onClick={onNextDay} disabled={viewingToday}>
-            ›
-          </button>
-        </div>
+        {showDate && (
+          <div className="tm-date-pill" role="group" aria-label="날짜 선택">
+            <button className="tm-date-pill-btn" type="button" onClick={onPrevDay} aria-label="이전 날" title="이전 날">
+              ‹
+            </button>
+            <button
+              className="tm-date-pill-label"
+              type="button"
+              onClick={onToday}
+              aria-label={`${dateLabel}, 누르면 오늘로 이동`}
+              title="오늘로 이동"
+            >
+              <span aria-hidden="true">📅</span>
+              <span>{dateLabel}</span>
+            </button>
+            <button
+              className="tm-date-pill-btn"
+              type="button"
+              onClick={onNextDay}
+              disabled={viewingToday}
+              aria-label="다음 날"
+              title="다음 날"
+            >
+              ›
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
