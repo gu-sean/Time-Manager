@@ -90,16 +90,42 @@ def decrypt_if_needed(db_path: Path) -> bool:
             "%s exists but is not a valid SQLite file (leftover from an interrupted "
             "encrypt) — ignoring it and decrypting from %s instead", db_path.name, enc_path.name
         )
+    ciphertext = enc_path.read_bytes()  # 읽기 실패는 암호 문제가 아님 → 시작 중단
     try:
-        key = _get_or_create_key()
-        plaintext = Fernet(key).decrypt(enc_path.read_bytes())
-        db_path.write_bytes(plaintext)
-        _log.info("DB decrypted: %s → %s", enc_path.name, db_path.name)
-        return True
+        plaintext = _decrypt_with_any_key(ciphertext)
     except Exception as exc:
         _log.error("DB decryption failed (%s) — app will open without prior data", type(exc).__name__)
         _set_aside_unreadable(enc_path)
         return False
+    _set_aside_stale_sidecars(db_path)
+    # 쓰기 실패(디스크 부족 등)는 시작 중단: .enc 는 그대로, 반쯤 쓰인 평문도 남지 않음
+    atomic_write_bytes(db_path, plaintext)
+    _log.info("DB decrypted: %s → %s", enc_path.name, db_path.name)
+    return True
+
+
+def _decrypt_with_any_key(ciphertext: bytes) -> bytes:
+    """자격 증명의 키, 다음으로 대체 키.
+
+    - 암호화할 때 자격 증명 저장소가 잠깐 실패하면 대체 키가 쓰임 → 둘 다 시도해야 열림
+    """
+    from cryptography.fernet import Fernet, InvalidToken
+
+    for key_of in (_get_or_create_key, _machine_derived_key):
+        try:
+            return Fernet(key_of()).decrypt(ciphertext)
+        except (InvalidToken, ValueError):  # ValueError: 저장된 키의 형식이 잘못됨
+            continue
+    raise InvalidToken
+
+
+def _set_aside_stale_sidecars(db_path: Path) -> None:
+    """복호화한 DB 옆에 다른 DB 의 WAL 이 남아 있으면 섞여 손상될 수 있음 → 삭제 대신 옮김."""
+    stamp = f"{datetime.now():%Y%m%d-%H%M%S-%f}"
+    for suffix in ("-wal", "-shm"):
+        sidecar = Path(f"{db_path}{suffix}")
+        if sidecar.exists():
+            os.replace(sidecar, sidecar.with_name(f"{sidecar.name}.stale-{stamp}"))
 
 
 def _set_aside_unreadable(enc_path: Path) -> None:

@@ -32,7 +32,7 @@ import { useRulesHandlers } from './hooks/useRulesHandlers';
 import { useSettingsHandlers } from './hooks/useSettingsHandlers';
 
 const PAGE_META: Record<string, { title: string; sub: string }> = {
-  dashboard: { title: '대시보드', sub: '오늘의 흐름' },
+  dashboard: { title: '대시보드', sub: '하루의 흐름' },
   inbox: { title: '정리함', sub: '활동 정리' },
   review: { title: '회고', sub: '일간 리뷰' },
   rules: { title: '규칙', sub: '분류 규칙' },

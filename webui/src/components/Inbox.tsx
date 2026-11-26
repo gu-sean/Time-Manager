@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { InboxData } from '../types';
 
 const PAGE_SIZE = 20;
@@ -66,10 +66,6 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
   };
 
   const pageCount = Math.max(1, Math.ceil(data.records.length / PAGE_SIZE));
-
-  useEffect(() => {
-    if (page > pageCount - 1) setPage(pageCount - 1);
-  }, [page, pageCount]);
 
   const currentPage = Math.min(page, pageCount - 1);
   const pageRecords = data.records.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
@@ -173,7 +169,7 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
             <button
               className="tm-page-btn"
               type="button"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              onClick={() => setPage(Math.max(0, currentPage - 1))}
               disabled={currentPage === 0}
             >
               ‹ 이전
@@ -184,7 +180,7 @@ export default function Inbox({ data, onSearch, onClearSearch, onDelete, onResto
             <button
               className="tm-page-btn"
               type="button"
-              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              onClick={() => setPage(Math.min(pageCount - 1, currentPage + 1))}
               disabled={currentPage === pageCount - 1}
             >
               다음 ›

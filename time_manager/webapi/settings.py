@@ -98,7 +98,7 @@ class SettingsMixin(WebApiBase):
         return self.get_settings()
 
     def set_theme(self, theme: str) -> dict[str, Any]:
-        self.settings.theme = theme if theme in {"light", "dark"} else "light"
+        self.settings.theme = theme if isinstance(theme, str) and theme in {"light", "dark"} else "light"
         self.settings_store.save(self.settings)
         return self.get_settings()
 

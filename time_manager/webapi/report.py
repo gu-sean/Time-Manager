@@ -6,7 +6,7 @@ from typing import Any
 from time_manager.formatting import _display_label, _format_seconds, _report_period_for_label, _truncate
 from time_manager.models import Category
 
-from ._shared import WebApiBase
+from ._shared import WebApiBase, _clamp_day
 
 
 def _week_change_text(seconds: int) -> str:
@@ -162,12 +162,10 @@ class ReportMixin(WebApiBase):
 
     def get_report_range(self, start_iso: str, end_iso: str) -> dict[str, Any]:
         try:
-            start_day = date.fromisoformat(start_iso)
-            end_day = date.fromisoformat(end_iso)
-        except ValueError:
+            start_day = _clamp_day(date.fromisoformat(start_iso))
+            end_day = _clamp_day(date.fromisoformat(end_iso))
+        except (TypeError, ValueError):
             return {**self.get_report(), "error": "날짜 형식이 올바르지 않습니다."}
-        today = date.today()
-        end_day = min(end_day, today)
         if start_day > end_day:
             return {**self.get_report(), "error": "시작일이 종료일보다 늦을 수 없습니다."}
         label = f"{start_day.strftime('%m/%d')}–{end_day.strftime('%m/%d')}"

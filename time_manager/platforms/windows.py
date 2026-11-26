@@ -1,12 +1,30 @@
 import ctypes
+import logging
+import re
+import threading
 import time
+from collections import deque
 from ctypes import wintypes
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from time_manager.models import ActiveTarget
 from time_manager.platforms import PlatformMonitor
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+_log = logging.getLogger(__name__)
+
+# 사용자가 주소창에 입력하는 중: 입력 중인 글은 읽지 않음
+TYPING = object()
+_NO_ADDRESS_BAR = "브라우저 주소창을 찾지 못했어요"
+# 검색 한도. Edge·Chrome 158 의 주소창은 9단계, 페이지를 빼면 전체 컨트롤은 수백 개
+_MAX_SEARCH_DEPTH = 20
+_MAX_SEARCH_CONTROLS = 1500
+# 점으로 나뉜 이름 + 글자로 된 최상위 도메인
+_HOST_NAME = re.compile(r"^(?:[\w-]+\.)+(?:[^\W\d_]{2,}|xn--[a-z0-9-]+)$")
+_IPV4 = re.compile(r"^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$")
+_com = threading.local()
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -46,6 +64,7 @@ class WindowsMonitor(PlatformMonitor):
         "vivaldi.exe",
         "opera.exe",
         "firefox.exe",
+        "whale.exe",
     }
 
     def __init__(self, url_poll_seconds: int = 10) -> None:
@@ -53,6 +72,8 @@ class WindowsMonitor(PlatformMonitor):
         self._last_url_lookup_at = 0.0
         self._last_browser_key: tuple[int, str, str] | None = None
         self._last_url: str | None = None
+        # 주소를 마지막으로 읽은 (창, 앱, 제목): 같은 화면에서만 그 주소를 이어 씀
+        self._url_page: tuple[int, str, str] | None = None
         self.last_status = ""
 
     def get_active_target(self) -> ActiveTarget:
@@ -68,13 +89,15 @@ class WindowsMonitor(PlatformMonitor):
         last_input.cbSize = ctypes.sizeof(LASTINPUTINFO)
         if not user32.GetLastInputInfo(ctypes.byref(last_input)):
             return 0
-        elapsed_ms = kernel32.GetTickCount() - last_input.dwTime
+        # 32비트 틱은 49.7일마다 0 으로 돌아감 → 차이도 32비트로 계산
+        elapsed_ms = (kernel32.GetTickCount() - last_input.dwTime) & 0xFFFFFFFF
         return max(0, int(elapsed_ms / 1000))
 
     def _browser_url(self, hwnd: int, app_name: str, title: str) -> str | None:
         if app_name.lower() not in self.browser_processes:
             self._last_browser_key = None
             self._last_url = None
+            self._url_page = None
             self.last_status = ""
             return None
 
@@ -86,8 +109,19 @@ class WindowsMonitor(PlatformMonitor):
         self._last_browser_key = key
         self._last_url_lookup_at = now
         url, status = _active_browser_url(hwnd, app_name)
+        if status and status != self.last_status:
+            _log.warning("%s", status)  # 주소·창 제목은 남기지 않음
         self.last_status = status
+
+        if url is TYPING or (url is None and status):
+            # 입력 중이거나 주소창이 가려짐(전체 화면 등): 같은 화면이면 직전 주소 유지
+            if url is TYPING:
+                self._last_url_lookup_at = 0.0  # 입력이 끝나면 바로 다시 읽음
+            self._last_url = self._last_url if key == self._url_page else None
+            return self._last_url
+
         self._last_url = url
+        self._url_page = key if url else None
         return url
 
 
@@ -124,8 +158,8 @@ def _process_path(hwnd: int) -> str:
         kernel32.CloseHandle(handle)
 
 
-def _active_browser_url(hwnd: int, app_name: str) -> tuple[str | None, str]:
-    # 반환값: (url, 진단 메시지). 메시지가 빈 문자열이면 정상
+def _active_browser_url(hwnd: int, app_name: str) -> tuple[object, str]:
+    # 반환값: (주소 | None | TYPING, 진단 메시지). 메시지가 빈 문자열이면 정상
     if app_name.lower() not in WindowsMonitor.browser_processes:
         return None, ""
 
@@ -135,49 +169,73 @@ def _active_browser_url(hwnd: int, app_name: str) -> tuple[str | None, str]:
         return None, "브라우저 URL 수집 불가: uiautomation 미설치 (pip install uiautomation)"
 
     try:
-        window = auto.ControlFromHandle(hwnd)
-        edits = _find_edit_controls(window, max_depth=5)
-        for edit in edits:
-            value = _control_value(edit)
-            if _looks_like_url(value):
-                return value, ""
+        # UI 자동화는 스레드마다 초기화가 필요. 스레드가 사는 동안 유지
+        if not hasattr(_com, "initializer"):
+            _com.initializer = auto.UIAutomationInitializerInThread()
+        return _read_address_bar(auto.ControlFromHandle(hwnd))
     except Exception as exc:
-        return None, f"브라우저 URL 추출 실패: {exc}"
-    return None, ""
+        return None, f"브라우저 URL 추출 실패: {type(exc).__name__}"
 
 
-def _find_edit_controls(control: object, max_depth: int) -> list[object]:
-    if max_depth <= 0:
-        return []
-
-    found = []
+def _read_address_bar(window: object) -> tuple[object, str]:
+    bar = _find_address_bar(window)
+    if bar is None:
+        return None, _NO_ADDRESS_BAR
+    if bar.HasKeyboardFocus:
+        return TYPING, ""
     try:
-        if getattr(control, "ControlTypeName", "") == "EditControl":
-            found.append(control)
-        for child in control.GetChildren():
-            found.extend(_find_edit_controls(child, max_depth - 1))
+        value = str(bar.GetValuePattern().Value or "").strip()  # 컨트롤 이름은 주소가 아님
     except Exception:
-        return found
-    return found
+        return None, "브라우저 주소창의 값을 읽지 못했어요"
+    return (value if _looks_like_url(value) else None), ""
 
 
-def _control_value(control: object) -> str:
-    try:
-        pattern = control.GetValuePattern()
-        value = pattern.Value
-        if value:
-            return str(value).strip()
-    except Exception:
-        pass
-    try:
-        name = control.Name
-        return str(name).strip() if name else ""
-    except Exception:
-        return ""
+def _find_address_bar(window: object) -> object | None:
+    """주소창 컨트롤. 웹 페이지(Document) 안은 살펴보지 않음.
+
+    - Chromium 계열은 클래스 이름이 ``OmniboxViewViews``
+    - 그 외 브라우저는 도구 모음 안의 첫 입력칸
+    - 이메일·메모 같은 페이지의 입력값이 주소로 저장되면 안 됨
+    """
+    queue = deque([(window, 1, False)])
+    in_a_toolbar = None
+    seen = 0
+    while queue and seen < _MAX_SEARCH_CONTROLS:
+        control, depth, below_toolbar = queue.popleft()
+        seen += 1
+        try:
+            kind = control.ControlTypeName
+            if kind == "DocumentControl":
+                continue
+            if kind == "EditControl":
+                if str(control.ClassName).endswith("OmniboxViewViews"):
+                    return control
+                if below_toolbar and in_a_toolbar is None:
+                    in_a_toolbar = control
+                continue
+            if depth < _MAX_SEARCH_DEPTH:
+                below = below_toolbar or kind == "ToolBarControl"
+                queue.extend((child, depth + 1, below) for child in control.GetChildren())
+        except Exception:  # 살펴보는 중에 사라진 컨트롤
+            continue
+    return in_a_toolbar
 
 
 def _looks_like_url(value: str) -> bool:
-    if not value or " " in value:
+    """웹 주소인지 확인. 검색어, 이메일, 파일 경로, 브라우저 내부 주소는 제외."""
+    if not value or any(char.isspace() for char in value):
         return False
     lower = value.lower()
-    return "." in lower and not lower.startswith(("search", "http://localhost:"))
+    if lower.startswith(("search", "http://localhost:")):
+        return False
+    if "://" in lower and not lower.startswith(("http://", "https://")):
+        return False
+    try:
+        parts = urlsplit(value if "://" in value else f"https://{value}")
+        parts.port  # 포트 형식이 잘못되면 ValueError 발생
+    except ValueError:
+        return False
+    if "@" in parts.netloc:
+        return False
+    host = parts.hostname or ""
+    return bool(_HOST_NAME.match(host) or _IPV4.match(host))

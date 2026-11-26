@@ -305,10 +305,6 @@ export default function Rules({
 
   const pageCount = Math.max(1, Math.ceil(data.items.length / PAGE_SIZE));
 
-  useEffect(() => {
-    if (page > pageCount - 1) setPage(pageCount - 1);
-  }, [page, pageCount]);
-
   const currentPage = Math.min(page, pageCount - 1);
   const pageItems = data.items.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
 
@@ -457,7 +453,7 @@ export default function Rules({
             <button
               className="tm-page-btn"
               type="button"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              onClick={() => setPage(Math.max(0, currentPage - 1))}
               disabled={currentPage === 0}
             >
               ‹ 이전
@@ -468,7 +464,7 @@ export default function Rules({
             <button
               className="tm-page-btn"
               type="button"
-              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              onClick={() => setPage(Math.min(pageCount - 1, currentPage + 1))}
               disabled={currentPage === pageCount - 1}
             >
               다음 ›

@@ -7,6 +7,7 @@ import webview
 
 from time_manager.paths import bundled_root
 from time_manager.settings import SettingsStore
+from time_manager.single_instance import WINDOW_TITLE
 from time_manager.storage import ActivityStore
 from time_manager.tracker import ActivityTracker
 from time_manager.webapi import WebApi
@@ -32,7 +33,7 @@ def run_webview(
     storage_path = settings_store.path.parent / "webview-profile"
     storage_path.mkdir(parents=True, exist_ok=True)
     webview.create_window(
-        "시간 관리 매니저",
+        WINDOW_TITLE,
         url=index_path.as_uri(),
         js_api=api,
         width=1040,

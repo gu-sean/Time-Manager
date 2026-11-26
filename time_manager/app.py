@@ -2,6 +2,7 @@ import logging
 import logging.handlers
 from pathlib import Path
 
+from time_manager import single_instance
 from time_manager.paths import ensure_writable_rules, user_data_dir
 from time_manager.rules import RuleClassifier
 from time_manager.settings import SettingsStore
@@ -51,10 +52,24 @@ def _bootstrap(project_root: Path):
 
 
 def run_webview(project_root: Path) -> None:
+    data_dir = user_data_dir(project_root)
+    _configure_logging(data_dir)  # 가장 먼저: 복호화의 성공·실패도 로그에 남김
+
+    instance = single_instance.acquire(data_dir)
+    if instance is None:
+        logging.getLogger(__name__).info("Time Manager is already running")
+        single_instance.show_running_window(single_instance.WINDOW_TITLE)
+        return
+    try:
+        _run(project_root, data_dir)
+    finally:
+        instance.release()
+
+
+def _run(project_root: Path, data_dir: Path) -> None:
     from time_manager.webapp import run_webview as _run_webview
     from time_manager.db_crypto import decrypt_if_needed, encrypt_and_replace
 
-    data_dir = user_data_dir(project_root)
     db_path = data_dir / "activity.sqlite3"
     decrypt_if_needed(db_path)
 

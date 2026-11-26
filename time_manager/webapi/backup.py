@@ -10,7 +10,7 @@ from time_manager import ai as _ai
 from time_manager.rules import RuleClassifier
 from time_manager.settings import AppSettings
 
-from ._shared import WebApiBase, _parse_day
+from ._shared import WebApiBase, _clamp_day, _parse_day
 
 _log = logging.getLogger(__name__)
 
@@ -106,9 +106,9 @@ class BackupMixin(WebApiBase):
 
     def export_csv_range(self, start_iso: str, end_iso: str) -> dict[str, Any]:
         try:
-            start_day = date.fromisoformat(start_iso)
-            end_day = date.fromisoformat(end_iso)
-        except ValueError:
+            start_day = _clamp_day(date.fromisoformat(start_iso))
+            end_day = _clamp_day(date.fromisoformat(end_iso))
+        except (TypeError, ValueError):
             return {"message": "날짜 형식이 올바르지 않습니다."}
         if start_day > end_day:
             return {"message": "시작일이 종료일보다 늦을 수 없습니다."}

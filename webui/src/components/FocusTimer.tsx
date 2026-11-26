@@ -11,7 +11,7 @@ function clockTime(ms: number): string {
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
+export default function FocusTimer({ summary, viewingToday = true }: { summary?: FocusSummary; viewingToday?: boolean }) {
   const timer = useSyncExternalStore(focusTimer.subscribe, focusTimer.getState);
   const { focusMinutes, phase, remaining, endsAt, completed } = timer;
   const running = endsAt !== null;
@@ -71,7 +71,7 @@ export default function FocusTimer({ summary }: { summary?: FocusSummary }) {
 
       {summary && summary.count > 0 && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border, #EEE9E0)', fontSize: 11.5, color: 'var(--tm-ink-4)', textAlign: 'center' }}>
-          오늘 25분+ 집중 구간 <strong style={{ color: 'var(--tm-ok)' }}>{summary.count}개</strong>
+          {viewingToday ? '오늘' : '이 날'} 25분+ 집중 구간 <strong style={{ color: 'var(--tm-ok)' }}>{summary.count}개</strong>
           {summary.totalTime && <> · <strong style={{ color: 'var(--tm-ok)' }}>{summary.totalTime}</strong></>}
         </div>
       )}

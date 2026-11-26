@@ -1,5 +1,10 @@
+import re
 from datetime import date, datetime, timedelta
 from urllib.parse import urlsplit
+
+
+# 스킴 없는 주소: 점으로 나뉜 이름(또는 IPv4), 포트, 그 뒤에 경로·쿼리·프래그먼트
+_BARE_ADDRESS = re.compile(r"^(?:(?:[\w-]+\.)+[^\W\d_]{2,}|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?[/?#]\S*$")
 
 
 def _format_seconds(seconds: int) -> str:
@@ -17,14 +22,19 @@ def _display_label(label: str) -> str:
 
     - 그 외(창 제목, 앱 이름)는 그대로 반환
     """
-    if not label.lower().startswith(("http://", "https://")):
+    if label.lower().startswith(("http://", "https://")):
+        address = label
+    elif _BARE_ADDRESS.match(label):  # 브라우저 주소창은 "https://" 를 숨김
+        address = f"https://{label}"
+    else:
         return label
     try:
-        parts = urlsplit(label)
+        parts = urlsplit(address)
         host = (parts.hostname or "").removeprefix("www.")
+        port = f":{parts.port}" if parts.port else ""
     except ValueError:
         return label
-    return f"{host}{parts.path.rstrip('/')}" if host else label
+    return f"{host}{port}{parts.path.rstrip('/')}" if host else label
 
 
 def _friendly_time(iso: str, today: date | None = None) -> str:

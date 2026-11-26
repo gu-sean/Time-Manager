@@ -31,6 +31,9 @@ _CATEGORY_LABELS = {
     Category.NEUTRAL: "중립",
 }
 
+# 이 앱의 기록이 있을 수 없는 이전 날짜
+EARLIEST_DAY = date(2000, 1, 1)
+
 CATEGORY_COLORS = {
     Category.PRODUCTIVE: "#128C6E",
     Category.UNPRODUCTIVE: "#D58528",
@@ -39,11 +42,17 @@ CATEGORY_COLORS = {
 
 
 def _parse_day(value: str | None) -> date:
-    """요청한 날짜. 없거나 해석할 수 없으면 오늘."""
+    """요청한 날짜. 없거나 해석할 수 없거나 범위 밖이면 오늘."""
     try:
-        return date.fromisoformat(value) if value else date.today()
+        day = date.fromisoformat(value) if value else date.today()
     except (TypeError, ValueError):
         return date.today()
+    return day if EARLIEST_DAY <= day <= date.today() else date.today()
+
+
+def _clamp_day(day: date) -> date:
+    """날짜 입력칸에는 0001년 같은 값도 넣을 수 있음 → 계산 가능한 범위로 제한."""
+    return min(max(day, EARLIEST_DAY), date.today())
 
 
 def _parse_category(value: str | None) -> Category | None:

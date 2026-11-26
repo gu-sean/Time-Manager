@@ -69,13 +69,11 @@ export default function Sidebar({ activePage, onSelectPage, tracking, onToggleTr
   }, [tracking]);
 
   useEffect(() => {
-    if (!tracking) {
-      setActivity(null);
-      return;
-    }
+    if (!tracking) return; // 멈춘 동안에는 `current` 가 null
     let cancelled = false;
     const tick = async () => {
-      const next = await getCurrentActivity();
+      // 한 번 실패는 무시: 연결 문제는 상단 안내가 알림
+      const next = await getCurrentActivity().catch(() => null);
       if (!cancelled) setActivity(next);
     };
     tick();

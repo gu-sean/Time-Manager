@@ -78,7 +78,8 @@ class BackupManager:
                         archive.write(source, archive_name)
         return output_path
 
-    _MAX_RESTORE_BYTES = 200 * 1024 * 1024  # 200 MB
+    # 압축 폭탄 방지용 상한. 오래 쓴 앱의 백업은 복원할 수 있어야 함
+    _MAX_RESTORE_BYTES = 1024 * 1024 * 1024  # 1 GB
 
     def restore(self, input_path: Path) -> Path:
         """현재 데이터를 백업 내용으로 교체. 교체 전 데이터의 안전 사본 경로를 반환.

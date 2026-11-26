@@ -16,7 +16,7 @@ from time_manager.local_model import LocalClassifier
 from time_manager.models import Category
 from time_manager.rules import load_rules
 
-from ._shared import WebApiBase, _CATEGORY_LABELS
+from ._shared import WebApiBase, _CATEGORY_LABELS, _clamp_day
 
 _WEEKDAYS = ("월", "화", "수", "목", "금", "토", "일")
 _MIN_ACTIVITY_SECONDS = 10 * 60
@@ -345,8 +345,8 @@ class AIMixin(WebApiBase):
         if scope not in {"day", "week"}:
             raise ValueError("분석 범위가 올바르지 않습니다.")
         try:
-            anchor = date.fromisoformat(date_iso) if date_iso else date.today()
-        except ValueError as exc:
+            anchor = _clamp_day(date.fromisoformat(date_iso)) if date_iso else date.today()
+        except (TypeError, ValueError) as exc:
             raise ValueError("날짜 형식이 올바르지 않습니다.") from exc
         return anchor - timedelta(days=6 if scope == "week" else 0), anchor
 

@@ -59,6 +59,8 @@ class PresetMixin(WebApiBase):
     # -- 선택·적용 --------------------------------------------------------------
 
     def set_profile(self, profile: str) -> dict[str, Any]:
+        if not isinstance(profile, str):  # 문자열이 아닌 값이 남으면 설정 화면이 계속 실패함
+            return self._preset_error("없는 프리셋이에요.")
         if profile and profile not in PROFILE_PRESETS and not self._custom_preset(profile):
             return self._preset_error("없는 프리셋이에요.")
         self.settings.onboarding_profile = profile

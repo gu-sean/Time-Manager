@@ -172,7 +172,7 @@ export default function Dashboard({ data }: DashboardProps) {
           <TopApps rows={data.topApps} />
         </div>
 
-        <FocusTimer summary={data.focusSummary} />
+        <FocusTimer summary={data.focusSummary} viewingToday={data.viewingToday} />
       </div>
     </div>
   );

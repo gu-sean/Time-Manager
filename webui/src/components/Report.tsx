@@ -116,14 +116,14 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
       <div className="tm-report-summary-row">
         <div className="tm-card tm-score-ring-card">
           <div className="tm-card-title" style={{ alignSelf: 'flex-start' }}>
-            주간 목표 점수
+            이번 주 목표 점수
           </div>
           <ScoreRing pct={data.weeklyScorePct} />
         </div>
 
         <div className="tm-card">
           <div className="tm-card-title" style={{ marginBottom: 10 }}>
-            이번 기간 요약
+            이번 주 목표 현황
           </div>
           <div className="tm-summary-stats">
             {data.weeklyProgressText.split(' · ').map((part, i) => (
@@ -133,7 +133,9 @@ export default function Report({ data, onChangePeriod, onChangeRange, onExportCs
               </div>
             ))}
           </div>
-          <div className="tm-coaching-note">{data.coachingText}</div>
+          <div className="tm-coaching-note">
+            <strong>선택한 기간</strong> · {data.coachingText}
+          </div>
         </div>
 
         <div className="tm-card">
