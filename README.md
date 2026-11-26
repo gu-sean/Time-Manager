@@ -110,7 +110,9 @@
 ### 설치 파일
 [Releases](https://github.com/gu-sean/Time-Manager/releases) 에서 `TimeManager-Setup-<버전>.exe` 를 내려받아 실행합니다.
 
-> 현재 릴리스 **v1.1.0** 에는 위 기능 중 맞춤 추천·코칭·질문, 새 그래프 등 이후에 추가한 내용이 포함되어 있지 않습니다. 최신 기능은 아래처럼 소스에서 실행하세요.
+- 기존 버전 위에 바로 설치할 수 있습니다. **설치 전에 앱을 종료하세요.**
+- 설치 파일에 코드 서명이 없어 "알 수 없는 게시자" 또는 SmartScreen 경고가 나타날 수 있습니다. 이 저장소의 Releases 에서 받은 파일인지 확인하세요.
+- 업데이트할 때 달라지는 점은 [최신 릴리스 노트](https://github.com/gu-sean/Time-Manager/releases/latest)를 확인하세요.
 
 ### 소스에서 실행
 Python 3.13 과 Node.js 24 에서 확인했습니다.
